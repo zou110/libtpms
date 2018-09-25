@@ -70,9 +70,10 @@
 #include <assert.h>
 #include "PlatformData.h"
 #include "Platform_fp.h"
+/* libtpms added begin */
 #include "NVMarshal.h"
-
 #include "LibtpmsCallbacks.h"
+/* libtpms added end */
 
 #if FILE_BACKED_NV
 #   include         <stdio.h>
@@ -347,12 +348,12 @@ _plat__NvMemoryMove(
     assert(sourceOffset + size <= NV_MEMORY_SIZE);
     assert(destOffset + size <= NV_MEMORY_SIZE);
     memmove(&s_NV[destOffset], &s_NV[sourceOffset], size);	// Move data in RAM
-#if 1
+#if 1    /* libtpms added begin */
     if (destOffset > sourceOffset)
         memset(&s_NV[sourceOffset], 0, destOffset-sourceOffset);
     else
         memset(&s_NV[destOffset+size], 0, sourceOffset-destOffset);
-#endif
+#endif   /* libtpms added end */
     return;
 }
 /* C.6.3.13. _plat__NvCommit() */
