@@ -3,7 +3,7 @@
 /*		Instance data for the Platform module. 				*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: PlatformData.h 1311 2018-08-23 21:39:29Z kgoldman $		*/
+/*            $Id: PlatformData.h 1370 2018-11-02 19:39:07Z kgoldman $		*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -135,12 +135,11 @@ extern unsigned char s_locality;
 #   undef   FILE_BACKED_NV
 #   define  FILE_BACKED_NV          (VTPM && YES)     // Default: Either YES or NO
 #endif
-#if 0	/* kgold Don't want SIMULATION for a VTPM */
-#if !SIMULATION
+#if SIMULATION
+#error Do not define SIMULATION for libtpms!
 #   undef       FILE_BACKED_NV
-#   define      FILE_BACKED_NV          NO
+#   define      FILE_BACKED_NV          YES
 #endif // SIMULATION
-#endif
 
 extern unsigned char     s_NV[NV_MEMORY_SIZE];
 extern BOOL              s_NvIsAvailable;
