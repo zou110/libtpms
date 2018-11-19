@@ -63,6 +63,7 @@
 /* 8.5.2 Includes, Defines and Data Definitions */
 #define NV_C
 #include    "Tpm.h"
+#include "tpm_library_intern.h" // libtpms added
 /*     8.5.2.1 NvInitStatic() */
 /* This function initializes the static variables used in the NV subsystem. */
 static void
@@ -196,9 +197,22 @@ NvUpdatePersistent(
 		   void            *buffer         // IN: the new data
 		   )
 {
+#if 1                                  // libtpms added begin
+    void *base = &gp;
+
+    if (offset + size > sizeof(gp)) {
+        TPMLIB_LogTPM2Error("%s: offset + size > sizeof(gp): %d + %d > %zu\n",
+                            __func__, offset, size, sizeof(gp));
+        FAIL_NOCMD(FATAL_ERROR_INTERNAL);
+        return;
+    }
+    MemoryCopy(base + offset, buffer, size);
+    NvWrite(offset, size, buffer);
+#else                                  // libtpms added end
     pAssert(offset + size <= sizeof(gp));
     MemoryCopy(&gp + offset, buffer, size);
     NvWrite(offset, size, buffer);
+#endif                                // libtpms added
 }
 /* 8.5.3.8 NvClearPersistent() */
 /* This function is used to clear a persistent data entry and commit it to NV */
@@ -209,9 +223,22 @@ NvClearPersistent(
 		  UINT32           size           // IN: number of bytes to clear
 		  )
 {
+#if 1                                     // libtpms added begin
+    void *base = &gp;
+
+    if (offset + size > sizeof(gp)) {
+        TPMLIB_LogTPM2Error("%s: offset + size > sizeof(gp): %d + %d > %zu\n",
+                            __func__, offset, size, sizeof(gp));
+        FAIL_NOCMD(FATAL_ERROR_INTERNAL);
+        return;
+    }
+    MemorySet(base + offset, 0, size);
+    NvWrite(offset, size, base + offset);
+#else                                     // libtpms added end
     pAssert(offset + size <= sizeof(gp));
     MemorySet((&gp) + offset, 0, size);
     NvWrite(offset, size, (&gp) + offset);
+#endif                                    // libtpms added
 }
 /* 8.5.3.9 NvReadPersistent() */
 /* This function reads persistent data to the RAM copy of the gp structure. */
