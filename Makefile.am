@@ -23,9 +23,12 @@
 
 SUBDIRS   = \
 	include \
-	man \
 	src \
 	tests
+
+if ENABLE_DOCS
+SUBDIRS += man
+endif # ENABLE_DOCS
 
 ACLOCAL_AMFLAGS = -I m4
 
@@ -38,7 +41,6 @@ EXTRA_DIST = \
 	libtpms.pc.in \
 	autogen.sh
 
-pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libtpms.pc
 
 DISTCHECK_CONFIGURE_FLAGS = --with-openssl --with-tpm2

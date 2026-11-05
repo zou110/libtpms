@@ -182,6 +182,11 @@ TPM_RESULT TPM_AuthSessionData_Store(TPM_STORE_BUFFER *sbuffer,
     TPM_RESULT		rc = 0;
 
     printf(" TPM_AuthSessionData_Store:\n");
+    if (rc == 0) {
+        if (tpm_auth_session_data == NULL) { // -fanalyzer
+            rc = TPM_FAIL;
+        }
+    }
     /* store handle */
     if (rc == 0) {
 	rc = TPM_Sbuffer_Append32(sbuffer, tpm_auth_session_data->handle);
@@ -240,10 +245,12 @@ void TPM_AuthSessionData_Delete(TPM_AUTH_SESSION_DATA *tpm_auth_session_data)
    since it might already be used.
 */
 
-void TPM_AuthSessionData_Copy(TPM_AUTH_SESSION_DATA *dest_auth_session_data,
-			      TPM_HANDLE tpm_handle,
-			      TPM_AUTH_SESSION_DATA *src_auth_session_data)
+TPM_RESULT TPM_AuthSessionData_Copy(TPM_AUTH_SESSION_DATA *dest_auth_session_data,// libtpms changed
+				    TPM_HANDLE tpm_handle,
+				    TPM_AUTH_SESSION_DATA *src_auth_session_data)
 {
+    TPM_RESULT		rc;							// libtpms added
+
     dest_auth_session_data->handle = tpm_handle;
     dest_auth_session_data->protocolID = src_auth_session_data->protocolID;
     dest_auth_session_data->entityTypeByte = src_auth_session_data->entityTypeByte;
@@ -251,8 +258,10 @@ void TPM_AuthSessionData_Copy(TPM_AUTH_SESSION_DATA *dest_auth_session_data,
     TPM_Nonce_Copy(dest_auth_session_data->nonceEven, src_auth_session_data->nonceEven);
     TPM_Secret_Copy(dest_auth_session_data->sharedSecret, src_auth_session_data->sharedSecret);
     TPM_Digest_Copy(dest_auth_session_data->entityDigest, src_auth_session_data->entityDigest);
-    TPM_DelegatePublic_Copy(&(dest_auth_session_data->pub), &(src_auth_session_data->pub));
+    rc = TPM_DelegatePublic_Copy(&(dest_auth_session_data->pub), &(src_auth_session_data->pub));
     dest_auth_session_data->valid= src_auth_session_data->valid;
+
+    return rc;									// libtpms added
 }
 
 /* TPM_AuthSessionData_GetDelegatePublic() */
@@ -708,7 +717,7 @@ TPM_RESULT TPM_AuthSessions_AddEntry(TPM_HANDLE *tpm_handle,				/* i/o */
 				       (TPM_GETENTRY_FUNCTION_T)TPM_AuthSessions_GetEntry);
     }
     if (rc == 0) {
-	TPM_AuthSessionData_Copy(&(authSessions[index]), *tpm_handle, tpm_auth_session_data);
+	rc = TPM_AuthSessionData_Copy(&(authSessions[index]), *tpm_handle, tpm_auth_session_data);
 	authSessions[index].valid = TRUE;
 	printf("  TPM_AuthSessions_AddEntry: Index %u handle %08x\n",
 	       index, authSessions[index].handle);
@@ -3043,17 +3052,17 @@ TPM_RESULT TPM_Process_SaveContext(tpm_state_t *tpm_state,
     TPM_BOOL			transportEncrypt;	/* wrapped in encrypted transport session */
     TPM_STORE_BUFFER		b1_sbuffer;		/* serialization of b1 */
     TPM_STCLEAR_DATA		*v1StClearData = NULL;
-    TPM_KEY_HANDLE_ENTRY	*tpm_key_handle_entry;	/* key table entry for the handle */
-    TPM_AUTH_SESSION_DATA	*tpm_auth_session_data; /* session table entry for the handle */
-    TPM_TRANSPORT_INTERNAL	*tpm_transport_internal; /* transport table entry for the handle */
-    TPM_DAA_SESSION_DATA	*tpm_daa_session_data;	/* daa session table entry for the handle */
+    TPM_KEY_HANDLE_ENTRY	*tpm_key_handle_entry = NULL;	/* key table entry for the handle */
+    TPM_AUTH_SESSION_DATA	*tpm_auth_session_data = NULL; /* session table entry for the handle */
+    TPM_TRANSPORT_INTERNAL	*tpm_transport_internal = NULL; /* transport table entry for the handle */
+    TPM_DAA_SESSION_DATA	*tpm_daa_session_data = NULL;	/* daa session table entry for the handle */
     TPM_NONCE			*n1ContextNonce = NULL;
     TPM_SYMMETRIC_KEY_TOKEN 	k1ContextKey = NULL;
     TPM_STORE_BUFFER		r1ContextSensitive; /* serialization of sensitive data clear text */
     TPM_CONTEXT_SENSITIVE	c1ContextSensitive;
     TPM_CONTEXT_BLOB		b1ContextBlob;
     TPM_STORE_BUFFER		c1_sbuffer;		/* serialization of c1ContextSensitive */
-    uint32_t			contextIndex;		/* free index in context list */
+    uint32_t			contextIndex = 0;	/* free index in context list */
     uint32_t			space;			/* free space in context list */
     TPM_BOOL			isZero;
     
@@ -3176,6 +3185,11 @@ TPM_RESULT TPM_Process_SaveContext(tpm_state_t *tpm_state,
 	printf("TPM_Process_SaveContext: Locating nonce\n");
 	/* a. If resourceType is TPM_RT_KEY */
 	if (resourceType == TPM_RT_KEY) {
+	    if (returnCode == TPM_SUCCESS) {
+	        if (tpm_key_handle_entry == NULL) { // -fanalyzer
+	            returnCode = TPM_FAIL;
+	        }
+	    }
 	    if (returnCode == TPM_SUCCESS) {
 		/* i. If TPM_STCLEAR_DATA -> contextNonceKey is NULLS */
 		TPM_Nonce_IsZero(&isZero, tpm_state->tpm_stclear_data.contextNonceKey);
@@ -4931,7 +4945,7 @@ TPM_RESULT TPM_Process_SaveAuthContext(tpm_state_t *tpm_state,
     TPM_AUTH_SESSION_DATA	*tpm_auth_session_data; /* session table entry for the handle */
     TPM_BOOL			isZero;			/* contextNonceSession not set yet */
     TPM_STCLEAR_DATA		*v1StClearData = NULL;
-    uint32_t			contextIndex;		/* free index in context list */
+    uint32_t			contextIndex = 0;	/* free index in context list */
     uint32_t			space;			/* free space in context list */
     TPM_CONTEXT_SENSITIVE	contextSensitive;
     TPM_STORE_BUFFER		contextSensitive_sbuffer; /* serialization of contextSensitive */
@@ -5423,6 +5437,8 @@ TPM_RESULT TPM_Process_LoadAuthContext(tpm_state_t *tpm_state,
 	/* c. Copy M1 to B1 -> sensitiveData (integrityDigest HMAC uses cleartext) */
 	returnCode = TPM_SizedBuffer_Set(&(authContextBlob.sensitiveData),
 					 contextSensitiveBuffer_length, contextSensitiveBuffer);
+    }						// libtpms added
+    if (returnCode == TPM_SUCCESS) {		// libtpms added
 	/* verify the integrityDigest HMAC of TPM_CONTEXT_BLOB using TPM_PERMANENT_DATA -> tpmProof
 	   as the HMAC key */
 	returnCode = TPM_HMAC_CheckStructure

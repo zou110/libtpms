@@ -538,7 +538,7 @@ TPM_RESULT TPM_VolatileAll_Store(TPM_STORE_BUFFER *sbuffer,
 
    If the file does not exist (a normal startup), returns success.
 
-   0 on success or non-existant file
+   0 on success or non-existent file
    TPM_FAIL on failure to load (fatal), since it should never occur
 */
 
@@ -1258,6 +1258,7 @@ TPM_RESULT TPM_Startup_Deactivated(tpm_state_t *tpm_state)
     return returnCode;
 }
 
+#if 0
 /* TPM_Startup_Any() rev 96
 
    Handles Actions common to all TPM_Startup options.
@@ -1277,6 +1278,7 @@ TPM_RESULT TPM_Startup_Any(tpm_state_t *tpm_state)
     tpm_state->tpm_stany_flags.postInitialise = FALSE;
     return returnCode;
 }
+#endif
 
 /* 3.3 TPM_SaveState rev 111
 

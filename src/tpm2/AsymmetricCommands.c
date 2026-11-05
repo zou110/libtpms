@@ -3,7 +3,6 @@
 /*			  Asymmetric Commands   				*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: AsymmetricCommands.c 1047 2017-07-20 18:27:34Z kgoldman $	*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -55,14 +54,13 @@
 /*    arising in any way out of use or reliance upon this specification or any 	*/
 /*    information herein.							*/
 /*										*/
-/*  (c) Copyright IBM Corp. and others, 2016, 2017				*/
+/*  (c) Copyright IBM Corp. and others, 2016 - 2024				*/
 /*										*/
 /********************************************************************************/
 
 #include "Tpm.h"
 #include "RSA_Encrypt_fp.h"
-#ifdef TPM_CC_RSA_Encrypt  // Conditional expansion of this file
-#ifdef TPM_ALG_RSA
+#if CC_RSA_Encrypt  // Conditional expansion of this file
 TPM_RC
 TPM2_RSA_Encrypt(
 		 RSA_Encrypt_In      *in,            // IN: input parameter list
@@ -74,6 +72,8 @@ TPM2_RSA_Encrypt(
     TPMT_RSA_DECRYPT        *scheme;
     // Input Validation
     rsaKey = HandleToObject(in->keyHandle);
+    pAssert_RC(rsaKey != NULL);
+
     // selected key must be an RSA key
     if(rsaKey->publicArea.type != TPM_ALG_RSA)
 	return TPM_RCS_KEY + RC_RSA_Encrypt_keyHandle;
@@ -95,12 +95,10 @@ TPM2_RSA_Encrypt(
 			     &in->label.b, NULL);
     return result;
 }
-#endif
 #endif // CC_RSA_Encrypt
 #include "Tpm.h"
 #include "RSA_Decrypt_fp.h"
-#ifdef TPM_CC_RSA_Decrypt  // Conditional expansion of this file
-#ifdef TPM_ALG_RSA
+#if CC_RSA_Decrypt  // Conditional expansion of this file
 TPM_RC
 TPM2_RSA_Decrypt(
 		 RSA_Decrypt_In      *in,            // IN: input parameter list
@@ -112,6 +110,8 @@ TPM2_RSA_Decrypt(
     TPMT_RSA_DECRYPT            *scheme;
     // Input Validation
     rsaKey = HandleToObject(in->keyHandle);
+    pAssert_RC(rsaKey != NULL);
+
     // The selected key must be an RSA key
     if(rsaKey->publicArea.type != TPM_ALG_RSA)
 	return TPM_RCS_KEY + RC_RSA_Decrypt_keyHandle;
@@ -140,12 +140,10 @@ TPM2_RSA_Decrypt(
 			     scheme, &in->label.b);
     return result;
 }
-#endif
 #endif // CC_RSA_Decrypt
 #include "Tpm.h"
 #include "ECDH_KeyGen_fp.h"
-#ifdef TPM_CC_ECDH_KeyGen  // Conditional expansion of this file
-#ifdef TPM_ALG_ECC
+#if CC_ECDH_KeyGen  // Conditional expansion of this file
 TPM_RC
 TPM2_ECDH_KeyGen(
 		 ECDH_KeyGen_In      *in,            // IN: input parameter list
@@ -157,6 +155,8 @@ TPM2_ECDH_KeyGen(
     TPM_RC                   result;
     // Input Validation
     eccKey = HandleToObject(in->keyHandle);
+    pAssert_RC(eccKey != NULL);
+
     // Referenced key must be an ECC key
     if(eccKey->publicArea.type != TPM_ALG_ECC)
 	return TPM_RCS_KEY + RC_ECDH_KeyGen_keyHandle;
@@ -187,12 +187,10 @@ TPM2_ECDH_KeyGen(
 	} while(result == TPM_RC_NO_RESULT);
     return result;
 }
-#endif // ALG_ECC
 #endif // CC_ECDH_KeyGen
 #include "Tpm.h"
 #include "ECDH_ZGen_fp.h"
-#ifdef TPM_CC_ECDH_ZGen  // Conditional expansion of this file
-#ifdef TPM_ALG_ECC
+#if CC_ECDH_ZGen  // Conditional expansion of this file
 TPM_RC
 TPM2_ECDH_ZGen(
 	       ECDH_ZGen_In    *in,            // IN: input parameter list
@@ -203,6 +201,8 @@ TPM2_ECDH_ZGen(
     OBJECT                  *eccKey;
     // Input Validation
     eccKey = HandleToObject(in->keyHandle);
+    pAssert_RC(eccKey != NULL);
+
     // Selected key must be a non-restricted, decrypt ECC key
     if(eccKey->publicArea.type != TPM_ALG_ECC)
 	return TPM_RCS_KEY + RC_ECDH_ZGen_keyHandle;
@@ -225,12 +225,10 @@ TPM2_ECDH_ZGen(
 	return RcSafeAddToResult(result, RC_ECDH_ZGen_inPoint);
     return result;
 }
-#endif
 #endif // CC_ECDH_ZGen
 #include "Tpm.h"
 #include "ECC_Parameters_fp.h"
-#ifdef TPM_CC_ECC_Parameters  // Conditional expansion of this file
-#ifdef TPM_ALG_ECC
+#if CC_ECC_Parameters  // Conditional expansion of this file
 TPM_RC
 TPM2_ECC_Parameters(
 		    ECC_Parameters_In   *in,            // IN: input parameter list
@@ -244,11 +242,10 @@ TPM2_ECC_Parameters(
     else
 	return TPM_RCS_VALUE + RC_ECC_Parameters_curveID;
 }
-#endif
 #endif // CC_ECC_Parameters
 #include "Tpm.h"
 #include "ZGen_2Phase_fp.h"
-#ifdef TPM_CC_ZGen_2Phase  // Conditional expansion of this file
+#if CC_ZGen_2Phase  // Conditional expansion of this file
 TPM_RC
 TPM2_ZGen_2Phase(
 		 ZGen_2Phase_In      *in,            // IN: input parameter list
@@ -259,8 +256,16 @@ TPM2_ZGen_2Phase(
     OBJECT                  *eccKey;
     TPM2B_ECC_PARAMETER      r;
     TPM_ALG_ID               scheme;
+								// libtpms added begin
+    /* 2phase key exchange uses ecc key derivation; check whether it is allowed */
+    if(RuntimeProfileRequiresAttributeFlags(&g_RuntimeProfile,
+					   RUNTIME_ATTRIBUTE_NO_ECC_KEY_DERIVATION))
+	return TPM_RC_TYPE;                                     // libtpms added end
+
     // Input Validation
     eccKey = HandleToObject(in->keyA);
+    pAssert_RC(eccKey != NULL);
+
     // keyA must be an ECC key
     if(eccKey->publicArea.type != TPM_ALG_ECC)
 	return TPM_RCS_KEY + RC_ZGen_2Phase_keyA;
@@ -306,4 +311,58 @@ TPM2_ZGen_2Phase(
 	CryptEndCommit(in->counter);
     return result;
 }
-#endif
+#endif // CC_ZGen_2Phase
+#include "Tpm.h"
+#include "ECC_Encrypt_fp.h"
+
+#if CC_ECC_Encrypt  // Conditional expansion of this file
+TPM_RC
+TPM2_ECC_Encrypt(
+		 ECC_Encrypt_In   *in,            // IN: input parameter list
+		 ECC_Encrypt_Out  *out            // OUT: output parameter list
+		 )
+{
+    OBJECT* pubKey = HandleToObject(in->keyHandle);
+    pAssert_RC(pubKey != NULL);
+
+    // Parameter validation
+    if (pubKey->publicArea.type != TPM_ALG_ECC)
+	return TPM_RC_KEY + RC_ECC_Encrypt_keyHandle;
+    // Have to have a scheme selected
+    if(!CryptEccSelectScheme(pubKey, &in->inScheme))
+	return TPM_RCS_SCHEME + RC_ECC_Encrypt_inScheme;
+    //  Command Output
+    return CryptEccEncrypt(pubKey, &in->inScheme, &in->plainText,
+			   &out->C1.point, &out->C2, &out->C3);
+}
+#endif // CC_ECC_Encrypt
+#include "Tpm.h"
+#include "ECC_Decrypt_fp.h"
+#include "CryptEccCrypt_fp.h"
+
+#if CC_ECC_Decrypt  // Conditional expansion of this file
+TPM_RC
+TPM2_ECC_Decrypt(
+		 ECC_Decrypt_In   *in,            // IN: input parameter list
+		 ECC_Decrypt_Out  *out            // OUT: output parameter list
+		 )
+{
+    OBJECT* key = HandleToObject(in->keyHandle);
+    pAssert_RC(key != NULL);
+
+    // Parameter validation
+    // Must be the correct type of key with correct attributes
+    if (key->publicArea.type != TPM_ALG_ECC)
+	return TPM_RC_KEY + RC_ECC_Decrypt_keyHandle;
+    if (IS_ATTRIBUTE(key->publicArea.objectAttributes, TPMA_OBJECT, restricted)
+	|| !IS_ATTRIBUTE(key->publicArea.objectAttributes, TPMA_OBJECT, decrypt))
+	return TPM_RCS_ATTRIBUTES + RC_ECC_Decrypt_keyHandle;
+    // Have to have a scheme selected
+    if(!CryptEccSelectScheme(key, &in->inScheme))
+	return TPM_RCS_SCHEME + RC_ECC_Decrypt_inScheme;
+    //  Command Output
+    return CryptEccDecrypt(key, &in->inScheme, &out->plainText,
+			   &in->C1.point, &in->C2, &in->C3);
+}
+#endif // CC_ECC_Decrypt
+

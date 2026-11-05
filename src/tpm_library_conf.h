@@ -53,6 +53,8 @@
 /* maximum size of the IO buffer used for requests and responses */
 #define TPM_BUFFER_MAX             4096
 
+#define TPM2_BUFFER_MAX            4096
+
 /*
  * Below the following acronyms are used to identify what
  * #define influences which one of the state blobs the TPM
@@ -85,7 +87,7 @@
 #define TPM_OWNER_EVICT_KEY_HANDLES      10            /* PA, BAL */
 
 /*
- * The largets auth session is DSAP; each such session consumes 119 bytes
+ * The largest auth session is DSAP; each such session consumes 119 bytes
  */
 #define TPM_MIN_AUTH_SESSIONS            16            /* SS, VA, BAL */
 

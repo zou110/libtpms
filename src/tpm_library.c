@@ -39,6 +39,7 @@
 
 #include <config.h>
 
+#define _GNU_SOURCE
 #include <assert.h>
 #include <string.h>
 #if defined __FreeBSD__
@@ -60,11 +61,12 @@
 # include <openssl/evp.h>
 #endif
 
-#include "tpm12/tpm_debug.h"
+#include "tpm_debug.h"
 #include "tpm_error.h"
 #include "tpm_library.h"
 #include "tpm_library_intern.h"
 #include "tpm_nvfilename.h"
+#include "tpm_tis.h"
 
 static const struct tags_and_indices {
     const char    *starttag;
@@ -78,9 +80,15 @@ static const struct tags_and_indices {
 };
 
 static const struct tpm_interface *const tpm_iface[] = {
+#if WITH_TPM1
     &TPM12Interface,
+#else
+    &DisabledInterface,
+#endif
 #if WITH_TPM2
     &TPM2Interface,
+#else
+    &DisabledInterface,
 #endif
     NULL,
 };
@@ -101,36 +109,38 @@ uint32_t TPMLIB_GetVersion(void)
 
 TPM_RESULT TPMLIB_ChooseTPMVersion(TPMLIB_TPMVersion ver)
 {
-    TPM_RESULT ret = TPM_SUCCESS;
-
     /* TPMLIB_Terminate will reset previous choice */
     if (tpmvers_locked)
         return TPM_FAIL;
 
     switch (ver) {
+#if WITH_TPM1
     case TPMLIB_TPM_VERSION_1_2:
         if (tpmvers_choice != 0)
             ClearAllCachedState();
 
         tpmvers_choice = 0; // entry 0 in tpm_iface
-        break;
-    case TPMLIB_TPM_VERSION_2:
+        return TPM_SUCCESS;
+#endif
 #if WITH_TPM2
+    case TPMLIB_TPM_VERSION_2:
         if (tpmvers_choice != 1)
             ClearAllCachedState();
 
         tpmvers_choice = 1; // entry 1 in tpm_iface
-        break;
+        return TPM_SUCCESS;
 #endif
     default:
-        ret = TPM_FAIL;
+        return TPM_FAIL;
     }
-
-    return ret;
 }
 
 TPM_RESULT TPMLIB_MainInit(void)
 {
+    if (!tpm_iface[tpmvers_choice]) {
+        return TPM_FAIL;
+    }
+
     tpmvers_locked = TRUE;
 
     return tpm_iface[tpmvers_choice]->MainInit();
@@ -256,6 +266,16 @@ TPM_RESULT TPMLIB_ValidateState(enum TPMLIB_StateType st,
                                 unsigned int flags)
 {
     return tpm_iface[tpmvers_choice]->ValidateState(st, flags);
+}
+
+TPM_RESULT TPMLIB_SetProfile(const char *profile)
+{
+    return tpm_iface[tpmvers_choice]->SetProfile(profile);
+}
+
+TPM_BOOL TPMLIB_WasManufactured(void)
+{
+    return tpm_iface[tpmvers_choice]->WasManufactured();
 }
 
 static struct libtpms_callbacks libtpms_cbs;
@@ -415,7 +435,7 @@ static unsigned char *TPMLIB_GetPlaintext(const char *stream,
                                           const char *endtag,
                                           size_t *length)
 {
-    char *start, *end;
+    const char *start, *end;
     unsigned char *plaintext = NULL;
 
     start = strstr(stream, starttag);
@@ -435,6 +455,9 @@ TPM_RESULT TPMLIB_DecodeBlob(const char *buffer, enum TPMLIB_BlobType type,
                              unsigned char **result, size_t *result_len)
 {
     TPM_RESULT res = TPM_SUCCESS;
+
+    if (type < TPMLIB_BLOB_TYPE_INITSTATE || type >= TPMLIB_BLOB_TYPE_LAST)
+        return TPM_FAIL;
 
     *result = TPMLIB_GetPlaintext(buffer,
                                   tags_and_indices[type].starttag,
@@ -573,6 +596,18 @@ void TPMLIB_LogArray(unsigned int indent, const unsigned char *data,
     }
 }
 
+int TPMLIB_asprintf(char **strp, const char *fmt, ...)
+{
+    int ret;
+    va_list ap;
+
+    va_start(ap, fmt);
+    ret = vasprintf(strp, fmt, ap);
+    va_end(ap);
+
+    return ret;
+}
+
 void ClearCachedState(enum TPMLIB_StateType st)
 {
     free(cached_blobs[st].buffer);
@@ -627,6 +662,8 @@ TPM_RESULT CopyCachedState(enum TPMLIB_StateType st,
     *is_empty_buffer = (*buflen == BUFLEN_EMPTY_BUFFER);
 
     if (cached_blobs[st].buffer) {
+        assert(*buflen != BUFLEN_EMPTY_BUFFER);
+
         *buffer = malloc(*buflen);
         if (!*buffer) {
             TPMLIB_LogError("Could not allocate %u bytes.\n", *buflen);

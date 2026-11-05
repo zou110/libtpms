@@ -1288,9 +1288,9 @@ TPM_RESULT TPM_Process_NVReadValue(tpm_state_t *tpm_state,
     TPM_BOOL			ignore_auth = FALSE;
     TPM_BOOL			dir = FALSE;
     TPM_BOOL			physicalPresence;
-    TPM_BOOL			isGPIO;
+    TPM_BOOL			isGPIO = FALSE;
     BYTE 			*gpioData = NULL;
-    TPM_NV_DATA_SENSITIVE	*d1NvdataSensitive;
+    TPM_NV_DATA_SENSITIVE	*d1NvdataSensitive = NULL;
     uint32_t			s1Last;
     
     /* output parameters  */
@@ -1537,8 +1537,8 @@ TPM_RESULT TPM_Process_NVReadValue(tpm_state_t *tpm_state,
 	    }
 	    /* c. Set data to area pointed to by offset */
 	    if ((returnCode == TPM_SUCCESS) && !isGPIO) {
-		TPM_PrintFour("TPM_Process_NVReadValue: read data",
-			      d1NvdataSensitive->data + offset);
+		TPM_PrintFourLimit("TPM_Process_NVReadValue: read data",
+			      d1NvdataSensitive->data + offset, dataSize);
 		returnCode = TPM_SizedBuffer_Set(&data,
 						 dataSize, d1NvdataSensitive->data + offset);
 	    }
@@ -1861,8 +1861,8 @@ TPM_RESULT TPM_Process_NVReadValueAuth(tpm_state_t *tpm_state,
 	    }
 	    /* c. Set data to area pointed to by offset */
 	    if ((returnCode == TPM_SUCCESS) && !isGPIO) {
-		TPM_PrintFour("TPM_Process_NVReadValueAuth: read data",
-			      d1NvdataSensitive->data + offset);
+		TPM_PrintFourLimit("TPM_Process_NVReadValueAuth: read data",
+			      d1NvdataSensitive->data + offset, dataSize);
 		returnCode = TPM_SizedBuffer_Set(&data, dataSize, d1NvdataSensitive->data + offset);
 	    }
 	    /* GPIO */
@@ -1997,10 +1997,10 @@ TPM_RESULT TPM_Process_NVWriteValue(tpm_state_t *tpm_state,
     TPM_BOOL			done = FALSE;
     TPM_BOOL			dir = FALSE;
     TPM_BOOL			writeAllNV = FALSE;	/* flag to write back NV */
-    TPM_NV_DATA_SENSITIVE	*d1NvdataSensitive;
+    TPM_NV_DATA_SENSITIVE	*d1NvdataSensitive = NULL;
     uint32_t			s1Last;
     TPM_BOOL			physicalPresence;
-    TPM_BOOL			isGPIO;
+    TPM_BOOL			isGPIO = FALSE;
     uint32_t			nv1 = tpm_state->tpm_permanent_data.noOwnerNVWrite;
 							/* temp for noOwnerNVWrite, initialize to
 							   silence compiler */
@@ -2078,7 +2078,7 @@ TPM_RESULT TPM_Process_NVWriteValue(tpm_state_t *tpm_state,
     if (returnCode == TPM_SUCCESS) {
 	printf("TPM_Process_NVWriteValue: index %08x offset %u dataSize %u\n",
 	       nvIndex, offset, data.size);
-	TPM_PrintFour("TPM_Process_NVWriteValue: data", data.buffer);
+	TPM_PrintFourLimit("TPM_Process_NVWriteValue: data", data.buffer, data.size);
 	/* 1. If TPM_PERMANENT_FLAGS -> nvLocked is FALSE then all authorization checks except for
 	   the max NV writes are ignored */
 	/* a. Ignored checks include physical presence, owner authorization, TPM_NV_PER_OWNERWRITE,
@@ -2291,7 +2291,7 @@ TPM_RESULT TPM_Process_NVWriteValue(tpm_state_t *tpm_state,
 	    if (!d1NvdataSensitive->pubInfo.bWriteDefine) {	/* save wearout, only write if
 								   FALSE */
 		d1NvdataSensitive->pubInfo.bWriteDefine = TRUE;
-		/* must write TPM_PERMANENT_DATA back to NVRAM, set this flag after strucuture is
+		/* must write TPM_PERMANENT_DATA back to NVRAM, set this flag after structure is
 		   written */
 		writeAllNV = TRUE;
 	    }
@@ -2328,7 +2328,7 @@ TPM_RESULT TPM_Process_NVWriteValue(tpm_state_t *tpm_state,
 			/* d. Write the new value into the NV storage area */
 			memcpy((d1NvdataSensitive->data) + offset, data.buffer, data.size);
 			/* must write TPM_PERMANENT_DATA back to NVRAM, set this flag after
-			   strucuture is written */
+			   structure is written */
 			writeAllNV = TRUE;
 		    }
 		    else {
@@ -2569,7 +2569,7 @@ TPM_RESULT TPM_Process_NVWriteValueAuth(tpm_state_t *tpm_state,
     if (returnCode == TPM_SUCCESS) {
 	printf("TPM_Process_NVWriteValueAuth: index %08x offset %u dataSize %u\n",
 	       nvIndex, offset, data.size);
-	TPM_PrintFour("TPM_Process_NVWriteValueAuth: data", data.buffer);
+	TPM_PrintFourLimit("TPM_Process_NVWriteValueAuth: data", data.buffer, data.size);
 	printf("TPM_Process_NVWriteValueAuth: Loading data from NVRAM\n");
 	returnCode = TPM_NVIndexEntries_GetEntry(&d1NvdataSensitive,
 						 &(tpm_state->tpm_nv_index_entries),
@@ -2675,7 +2675,7 @@ TPM_RESULT TPM_Process_NVWriteValueAuth(tpm_state_t *tpm_state,
 	    if (!d1NvdataSensitive->pubInfo.bWriteDefine) {	/* save wearout, only write if
 								   FALSE */
 		d1NvdataSensitive->pubInfo.bWriteDefine = TRUE;
-		/* must write TPM_PERMANENT_DATA back to NVRAM, set this flag after strucuture is
+		/* must write TPM_PERMANENT_DATA back to NVRAM, set this flag after structure is
 		   written */
 		writeAllNV = TRUE;
 	    }
@@ -2712,7 +2712,7 @@ TPM_RESULT TPM_Process_NVWriteValueAuth(tpm_state_t *tpm_state,
 			printf("TPM_Process_NVWriteValueAuth: Copying data\n");
 			memcpy((d1NvdataSensitive->data) + offset, data.buffer, data.size);
 			/* must write TPM_PERMANENT_DATA back to NVRAM, set this flag after
-			   strucuture is written */
+			   structure is written */
 			writeAllNV = TRUE;
 		    }
 		    else {
@@ -2896,6 +2896,11 @@ TPM_RESULT TPM_Process_NVDefineSpace(tpm_state_t *tpm_state,
     if (returnCode == TPM_SUCCESS) {
 	returnCode = TPM_NVIndexEntries_GetFreeEntry(&d1_new, &(tpm_state->tpm_nv_index_entries));
     }    
+    if (returnCode == TPM_SUCCESS) {
+        if (d1_new == NULL) { // -fanalyzer
+            returnCode = TPM_FAIL;
+        }
+    }
     /* get pubInfo parameter */
     if (returnCode == TPM_SUCCESS) {
 	pubInfo = &(d1_new->pubInfo);	/* pubInfo is an input parameter */
@@ -2977,7 +2982,7 @@ TPM_RESULT TPM_Process_NVDefineSpace(tpm_state_t *tpm_state,
 	}
 	else {
 	    /* b. Set TPM_PERMANENT_FLAGS -> nvLocked to TRUE */
-	    /* writeAllNV set to TRUE if nvLocked is beng set, not if already set */
+	    /* writeAllNV set to TRUE if nvLocked is being set, not if already set */
 	    printf("TPM_Process_NVDefineSpace: Setting nvLocked\n");
 	    TPM_SetCapability_Flag(&writeAllNV,					/* altered */
 				   &(tpm_state->tpm_permanent_flags.nvLocked ), /* flag */
@@ -3121,7 +3126,7 @@ TPM_RESULT TPM_Process_NVDefineSpace(tpm_state_t *tpm_state,
 	    foundOld = TRUE;
 	}
 	else if (returnCode == TPM_BADINDEX) {
-	    returnCode = TPM_SUCCESS;	/* non-existant index is not an error */
+	    returnCode = TPM_SUCCESS;	/* non-existent index is not an error */
 	    foundOld = FALSE;
 	    printf("TPM_Process_NVDefineSpace: Index %08x is new\n", newNVIndex);
 	}

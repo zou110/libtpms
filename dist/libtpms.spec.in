@@ -2,7 +2,7 @@
 
 %define name      @PACKAGE@
 %define version   @VERSION@
-%define release   1_dev1
+%define release   0~dev1
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -19,7 +19,7 @@ Release:        %{release}%{?dist}
 License:        BSD
 Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms
-Source:         http://github.com/stefanberger/libtpms/archive/v%{version}.tar.gz
+Source:         libtpms-%{version}.tar.gz
 Provides:       libtpms-%{crypto_subsystem} = %{version}-%{release}
 
 %if "%{crypto_subsystem}" == "openssl"
@@ -33,7 +33,7 @@ BuildRequires:  nss-softokn-freebl-static >= 3.12.9-2
 BuildRequires:  nss-softokn-devel >= 3.12.9-2, gmp-devel
 %endif
 BuildRequires:  pkgconfig gawk sed
-BuildRequires:  automake autoconf libtool bash coreutils
+BuildRequires:  automake autoconf libtool bash coreutils gcc-c++
 
 %if "%{crypto_subsystem}" == "openssl"
 Requires:       openssl
@@ -78,11 +78,11 @@ Libtpms header files and documentation.
 %define _with_openssl --with-openssl
 %endif
 
-%if %{build_type} == debug
+%if "%{build_type}" == "debug"
 %define _enable_debug --enable-debug
 %endif
 
-%if %{build_type} == debug
+%if "%{build_type}" == "debug"
 CFLAGS=-O0
 %endif
 ./autogen.sh \
@@ -112,6 +112,21 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
+* Thu Nov 14 2024 Stefan Berger - 0.10.0-1
+- Release of version 0.10.0 (rev. 183)
+
+* Wed Sep 29 2021 Stefan Berger - 0.9.0-1
+- Release of version 0.9.0 (rev. 164)
+
+* Wed Feb 24 2021 Stefan Berger - 0.8.0-1
+- Release of version 0.8.0 (rev. 162)
+
+* Fri Jul 19 2019 Stefan Berger - 0.7.0-1
+- Release of version 0.7.0 (rev. 150)
+
+* Mon Jan 14 2018 Stefan Berger - 0.6.0-1
+- Release of version 0.6.0 with TPM 2.0 support
+
 * Mon Jun 30 2014 Stefan Berger - 0.5.2-1
 - Updated to version 0.5.2
 - coverity fixes
@@ -184,7 +199,7 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 - Adding LICENSE, README and CHANGELOG file into tar ball and main rpm
 - Removing clean section
 - removed command to clean the build root
-- adding library version to the libries required for building and during
+- adding library version to the libraries required for building and during
   runtime
 - Extended Requires in devel package with {?_isa}
 

@@ -1,9 +1,8 @@
 /********************************************************************************/
 /*										*/
-/*			     				*/
+/*			  	Capability Commands   				*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: CapabilityCommands.c 809 2016-11-16 18:31:54Z kgoldman $			*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -55,13 +54,13 @@
 /*    arising in any way out of use or reliance upon this specification or any 	*/
 /*    information herein.							*/
 /*										*/
-/*  (c) Copyright IBM Corp. and others, 2016					*/
+/*  (c) Copyright IBM Corp. and others, 2016 - 2023				*/
 /*										*/
 /********************************************************************************/
 
 #include "Tpm.h"
 #include "GetCapability_fp.h"
-#ifdef TPM_CC_GetCapability  // Conditional expansion of this file
+#if CC_GetCapability  // Conditional expansion of this file
 TPM_RC
 TPM2_GetCapability(
 		   GetCapability_In    *in,            // IN: input parameter list
@@ -166,7 +165,7 @@ TPM2_GetCapability(
 						in->propertyCount,
 						&data->tpmProperties);
 	    break;
-#ifdef TPM_ALG_ECC
+#if ALG_ECC
 	  case TPM_CAP_ECC_CURVES:
 	    out->moreData = CryptCapGetECCCurve((TPM_ECC_CURVE)in->property,
 						in->propertyCount,
@@ -180,6 +179,29 @@ TPM2_GetCapability(
 						     in->propertyCount,
 						     &data->authPolicies);
 	    break;
+	  case TPM_CAP_ACT:
+	    if(((TPM_RH)in->property < TPM_RH_ACT_0)
+	       || ((TPM_RH)in->property > TPM_RH_ACT_F))
+		return TPM_RCS_VALUE + RC_GetCapability_property;
+	    out->moreData = ActGetCapabilityData((TPM_HANDLE)in->property,
+						 in->propertyCount,
+						 &data->actData);
+	    break;
+#  if SEC_CHANNEL_SUPPORT
+        case TPM_CAP_PUB_KEYS:
+            // This reference implementation supports only a single TPM SPDM public key
+            if((TPM_PUB_KEY)in->property != TPM_PUB_KEY_TPM_SPDM_00)
+                return TPM_RCS_VALUE + RC_GetCapability_property;
+            out->moreData = SpdmCapGetTpmPubKeys(
+                (TPM_PUB_KEY)in->property, in->propertyCount, &data->pubKeys);
+            break;
+        case TPM_CAP_SPDM_SESSION_INFO:
+            // Input property must be 0
+            if(in->property != 0)
+                return TPM_RCS_VALUE + RC_GetCapability_property;
+            out->moreData = SpdmCapGetSessionInfo(&data->spdmSessionInfo);
+            break;
+#  endif  // SEC_CHANNEL_SUPPORT
 	  case TPM_CAP_VENDOR_PROPERTY:
 	    // vendor property is not implemented
 	  default:
@@ -190,9 +212,10 @@ TPM2_GetCapability(
     return TPM_RC_SUCCESS;
 }
 #endif // CC_GetCapability
+
 #include "Tpm.h"
 #include "TestParms_fp.h"
-#ifdef TPM_CC_TestParms  // Conditional expansion of this file
+#if CC_TestParms  // Conditional expansion of this file
 TPM_RC
 TPM2_TestParms(
 	       TestParms_In    *in             // IN: input parameter list
@@ -205,3 +228,25 @@ TPM2_TestParms(
     return TPM_RC_SUCCESS;
 }
 #endif // CC_TestParms
+
+#include "Tpm.h"
+#include "SetCapability_fp.h"
+
+#if CC_SetCapability  // Conditional expansion of this file
+
+/*(See part 3 specification)
+// This command allows configuration of the TPM's capabilities.
+*/
+//  Return Type: TPM_RC
+//      TPM_RC_HANDLE       value of 'property' is in an unsupported handle range
+//                          for the TPM_CAP_HANDLES 'capability' value
+//      TPM_RC_VALUE        invalid 'capability'
+TPM_RC
+TPM2_SetCapability(SetCapability_In* in  // IN: input parameter list
+		   )
+{
+    // This reference implementation does not implement any settable capabilities.
+    return TPM_RCS_VALUE + SetCapability_setCapabilityData;
+}
+
+#endif  // CC_SetCapability

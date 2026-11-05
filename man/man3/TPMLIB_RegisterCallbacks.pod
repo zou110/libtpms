@@ -21,7 +21,7 @@ B<TPM_RESULT TPMLIB_RegisterCallbacks(struct tpmlibrary_callbacks *);>
 
 =head1 DESCRIPTION
 
-The B<TPMLIB_RegisterCallbacks()> functions allows to register several
+The B<TPMLIB_RegisterCallbacks()> functions allows callers to register several
 callback functions with libtpms that enable a user to implement customized
 behavior of several library-internal functions. This feature will typically
 be used if the behavior of the provided internal functions is not as needed.
@@ -66,8 +66,8 @@ be implemented.
 
 =item B<tpm_nvram_init>
 
-This function is called before any access to persitent storage is done. It
-allows the user to perform initialization of access to persitent storage.
+This function is called before any access to persistent storage is done. It
+allows the user to perform initialization of access to persistent storage.
 
 Upon success this function should return B<TPM_SUCCESS>, a failure code
 otherwise.
@@ -88,13 +88,23 @@ B<TPM_VOLATILESTATE_NAME>, or B<TPM_PERMANENT_ALL_NAME> and indicates
 which one of the 3 types of state is supposed to be loaded.
 
 Upon success this function should return B<TPM_SUCCESS>, a failure code
-otherwise.
+otherwise. B<TPM_RETRY> is returned if no state file existed so far. It should
+not be treated as an error.
 
 The default implementation writes the TPM's state into files in a directory
 where the I<TPM_PATH> environment variable pointed to when
 B<TPMLIB_MainInit()> was executed. Failure to write the TPM's state into
 files will put the TPM into failure mode.
 
+If this function is not set (NULL), then the original NVChip file
+will be read when using a TPM 2. This file contains the memory dump of
+internal data structures and is neither portable between endianesses or
+architectures of different sizes (32 bit, 64 bit), nor will it allow
+handling extensions of those internal data structures it carries
+through additions in the TPM 2 code. In the worst case this may result
+in memory access errors by internal functions and result in crashes.
+Therefore, it is recommended to set this function and handle the writing
+of the TPM state.
 
 =item B<tpm_nvram_storedata>
 
@@ -115,6 +125,10 @@ where the I<TPM_PATH> environment variable pointed to when
 B<TPMLIB_MainInit()> was executed. Failure to read the TPM's state from
 files may put the TPM into failure mode.
 
+If this function is not set (NULL), the memory dump will be written
+to the NVChip file (TPM 2) and the same comments apply as when the
+I<tpm_nvram_loaddata> interface function is not set.
+
 =item B<tpm_nvram_deletename>
 
 This function is called when the TPM wants to delete state on persistent
@@ -123,7 +137,7 @@ The I<tpm_number> is always 0 and can be ignored.
 The I<name> parameter is either one of B<TPM_SAVESTATE_NAME>,
 B<TPM_VOLATILESTATE_NAME>, or B<TPM_PERMANENT_ALL_NAME> and indicates
 which one of the 3 types of state is supposed to be deleted.
-The I<mustExist> parameter indicates wheteher the given data must exist
+The I<mustExist> parameter indicates whether the given data must exist
 and the implementing function should return B<TPM_FAIL> if the data did
 not exist.
 
@@ -151,8 +165,9 @@ under which a command is supposed to be executed. The implementing function
 should return the number of the locality by writing it into the 
 B<localityModifier> pointer.
 
-Upon success this function should return B<TPM_SUCCESS>, a failure code
-otherwise.
+This function is expected to return B<TPM_SUCCESS> along with a valid
+locality number. The program implementing the called function is trusted to
+manage locality numbers correctly.
 
 The default implementation returns 0 as the locality.
 
@@ -180,7 +195,7 @@ an error value otherwise.
 
 =item B<TPM_SUCCESS>
 
-The function completed sucessfully.
+The function completed successfully.
 
 =item B<TPM_FAIL>
 
@@ -204,14 +219,16 @@ B<libtpms/tpm_error.h>
  	return TPM_SUCCESS;
  }
 
- static TPM_RESULT tpm_io_getlocality(TPM_MODIFIER_INDICATOR *locModif)
+ static TPM_RESULT mytpm_io_getlocality(TPM_MODIFIER_INDICATOR *locModif,
+                                        uint32_t tpm_number)
  {
  	*locModif = locality;
 
  	return TPM_SUCCESS:
  }
 
- static TPM_RESULT mytpm_io_getphysicalpresence(TPM_BOOL *phyPres)
+ static TPM_RESULT mytpm_io_getphysicalpresence(TPM_BOOL *physicalPresence,
+                                                uint32_t tpm_number)
  {
  	*physicalPresence = FALSE;
 
@@ -240,7 +257,7 @@ B<libtpms/tpm_error.h>
 
      [...]
 
-     if (TPMLIB_RegisterCallbacks(cbs) != TPM_SUCCESS) {
+     if (TPMLIB_RegisterCallbacks(&cbs) != TPM_SUCCESS) {
          fprintf(stderr, "Could not register the callbacks.\n");
          return 1;
      }

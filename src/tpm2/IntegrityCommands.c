@@ -1,9 +1,9 @@
 /********************************************************************************/
 /*										*/
-/*			     				*/
+/*			  Integrity Collection (PCR)   				*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: IntegrityCommands.c 809 2016-11-16 18:31:54Z kgoldman $			*/
+/*            $Id: IntegrityCommands.c 1490 2019-07-26 21:13:22Z kgoldman $	*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -55,13 +55,13 @@
 /*    arising in any way out of use or reliance upon this specification or any 	*/
 /*    information herein.							*/
 /*										*/
-/*  (c) Copyright IBM Corp. and others, 2016					*/
+/*  (c) Copyright IBM Corp. and others, 2016 - 2021				*/
 /*										*/
 /********************************************************************************/
 
 #include "Tpm.h"
 #include "PCR_Extend_fp.h"
-#ifdef TPM_CC_PCR_Extend  // Conditional expansion of this file
+#if CC_PCR_Extend  // Conditional expansion of this file
 TPM_RC
 TPM2_PCR_Extend(
 		PCR_Extend_In   *in             // IN: input parameter list
@@ -99,7 +99,7 @@ TPM2_PCR_Extend(
 #endif // CC_PCR_Extend
 #include "Tpm.h"
 #include "PCR_Event_fp.h"
-#ifdef TPM_CC_PCR_Event  // Conditional expansion of this file
+#if CC_PCR_Event  // Conditional expansion of this file
 TPM_RC
 TPM2_PCR_Event(
 	       PCR_Event_In    *in,            // IN: input parameter list
@@ -140,25 +140,8 @@ TPM2_PCR_Event(
 }
 #endif // CC_PCR_Event
 #include "Tpm.h"
-#include "PCR_Read_fp.h"
-#ifdef TPM_CC_PCR_Read  // Conditional expansion of this file
-TPM_RC
-TPM2_PCR_Read(
-	      PCR_Read_In     *in,            // IN: input parameter list
-	      PCR_Read_Out    *out            // OUT: output parameter list
-	      )
-{
-    // Command Output
-    // Call PCR read function.  input pcrSelectionIn parameter could be changed
-    // to reflect the actual PCR being returned
-    PCRRead(&in->pcrSelectionIn, &out->pcrValues, &out->pcrUpdateCounter);
-    out->pcrSelectionOut = in->pcrSelectionIn;
-    return TPM_RC_SUCCESS;
-}
-#endif // CC_PCR_Read
-#include "Tpm.h"
 #include "PCR_Allocate_fp.h"
-#ifdef TPM_CC_PCR_Allocate  // Conditional expansion of this file
+#if CC_PCR_Allocate  // Conditional expansion of this file
 TPM_RC
 TPM2_PCR_Allocate(
 		  PCR_Allocate_In     *in,            // IN: input parameter list
@@ -191,7 +174,7 @@ TPM2_PCR_Allocate(
 #endif // CC_PCR_Allocate
 #include "Tpm.h"
 #include "PCR_SetAuthPolicy_fp.h"
-#ifdef TPM_CC_PCR_SetAuthPolicy  // Conditional expansion of this file
+#if CC_PCR_SetAuthPolicy  // Conditional expansion of this file
 TPM_RC
 TPM2_PCR_SetAuthPolicy(
 		       PCR_SetAuthPolicy_In    *in             // IN: input parameter list
@@ -220,7 +203,7 @@ TPM2_PCR_SetAuthPolicy(
 #endif // CC_PCR_SetAuthPolicy
 #include "Tpm.h"
 #include "PCR_SetAuthValue_fp.h"
-#ifdef TPM_CC_PCR_SetAuthValue  // Conditional expansion of this file
+#if CC_PCR_SetAuthValue  // Conditional expansion of this file
 // CC_PCR_SetAuthPolicy
 TPM_RC
 TPM2_PCR_SetAuthValue(
@@ -246,7 +229,7 @@ TPM2_PCR_SetAuthValue(
 #endif // CC_PCR_SetAuthValue
 #include "Tpm.h"
 #include "PCR_Reset_fp.h"
-#ifdef TPM_CC_PCR_Reset  // Conditional expansion of this file
+#if CC_PCR_Reset  // Conditional expansion of this file
 TPM_RC
 TPM2_PCR_Reset(
 	       PCR_Reset_In    *in             // IN: input parameter list
@@ -272,19 +255,19 @@ TPM2_PCR_Reset(
 
 #include "Tpm.h"
 /* This function is called to process a _TPM_Hash_Start() indication. */
-LIB_EXPORT void
-_TPM_Hash_Start(
-		void
-		)
+LIB_EXPORT BOOL _TPM_Hash_Start(void)
 {
     TPM_RC              result;
     TPMI_DH_OBJECT      handle;
     // If a DRTM sequence object exists, free it up
     if(g_DRTMHandle != TPM_RH_UNASSIGNED)
-	{
-	    FlushObject(g_DRTMHandle);
-	    g_DRTMHandle = TPM_RH_UNASSIGNED;
-	}
+    {
+        // ensure g_DRTMHandle is cleared
+        // and Flush sequence object
+        TPMI_DH_OBJECT oldHandle = g_DRTMHandle;
+        g_DRTMHandle             = TPM_RH_UNASSIGNED;
+        VERIFY(FlushObject(oldHandle), FATAL_ERROR_INTERNAL, FALSE);
+    }
     // Create an event sequence object and store the handle in global
     // g_DRTMHandle. A TPM_RC_OBJECT_MEMORY error may be returned at this point
     // The NULL value for the first parameter will cause the sequence structure to
@@ -312,23 +295,21 @@ _TPM_Hash_Start(
 	    // then there's a big problem
 	    pAssert(handle < TRANSIENT_LAST);
 	    // Free the slot
-	    FlushObject(handle);
+	    VERIFY(FlushObject(handle), FATAL_ERROR_INTERNAL, FALSE);
 	    // Try to create an event sequence object again.  This time, we must
 	    // succeed.
 	    result = ObjectCreateEventSequence(NULL, &g_DRTMHandle);
 	    if(result != TPM_RC_SUCCESS)
 		FAIL(FATAL_ERROR_INTERNAL);
 	}
-    return;
+    return TRUE;
 }
 
 #include "Tpm.h"
 /* This function is called to process a _TPM_Hash_Data() indication. */
-LIB_EXPORT void
-_TPM_Hash_Data(
-	       uint32_t         dataSize,      // IN: size of data to be extend
-	       unsigned char   *data           // IN: data buffer
-	       )
+LIB_EXPORT BOOL _TPM_Hash_Data(uint32_t dataSize,   // IN: size of data to be extend
+			       unsigned char* data  // IN: data buffer
+)
 {
     UINT32           i;
     HASH_OBJECT     *hashObject;
@@ -338,9 +319,16 @@ _TPM_Hash_Data(
     // was not called so this function returns without doing
     // anything.
     if(g_DRTMHandle == TPM_RH_UNASSIGNED)
-	return;
+    {
+        // do not enter failure mode because this is an ordering issue that
+        // can be triggered by a BIOS issue, not an internal failure.
+        return FALSE;
+    }
+
     hashObject = (HASH_OBJECT *)HandleToObject(g_DRTMHandle);
+    pAssert_BOOL(hashObject != NULL);
     pAssert(hashObject->attributes.eventSeq);
+
     // For each of the implemented hash algorithms, update the digest with the
     // data provided.
     for(i = 0; i < HASH_COUNT; i++)
@@ -351,15 +339,12 @@ _TPM_Hash_Data(
 		// Update sequence object
 		CryptDigestUpdate(&hashObject->state.hashState[i], dataSize, data);
 	}
-    return;
+    return TRUE;
 }
 
 #include "Tpm.h"
 /* This function is called to process a _TPM_Hash_End() indication. */
-LIB_EXPORT void
-_TPM_Hash_End(
-	      void
-	      )
+LIB_EXPORT BOOL _TPM_Hash_End(void)
 {
     UINT32          i;
     TPM2B_DIGEST    digest;
@@ -369,9 +354,17 @@ _TPM_Hash_End(
     // been called, _TPM_Hash_End was previously called, or some other command
     // was executed and the sequence was aborted.
     if(g_DRTMHandle == TPM_RH_UNASSIGNED)
-	return;
+    {
+        // do not enter failure mode because this is an ordering issue that
+        // can be triggered by a BIOS issue, not an internal failure.
+        return FALSE;
+    }
+
     // Get DRTM sequence object
     hashObject = (HASH_OBJECT *)HandleToObject(g_DRTMHandle);
+    pAssert_BOOL(hashObject != NULL);
+    pAssert_BOOL(hashObject->attributes.eventSeq);
+
     // Is this _TPM_Hash_End after Startup or before
     if(TPMIsStarted())
 	{
@@ -404,8 +397,10 @@ _TPM_Hash_End(
 		    PcrDrtm(pcrHandle, hash, &digest);
 		}
 	}
-    // Flush sequence object.
-    FlushObject(g_DRTMHandle);
-    g_DRTMHandle = TPM_RH_UNASSIGNED;
-    return;
+
+    // ensure g_DRTMHandle is cleared
+    // and Flush sequence object
+    TPMI_DH_OBJECT oldHandle = g_DRTMHandle;
+    g_DRTMHandle             = TPM_RH_UNASSIGNED;
+    return FlushObject(oldHandle);
 }

@@ -408,6 +408,11 @@ TPM_RESULT TPM_CounterValue_StorePublic(TPM_STORE_BUFFER *sbuffer,
     TPM_RESULT	rc = 0;
 
     printf(" TPM_CounterValue_StorePublic:\n");
+    if (rc == 0) {
+        if (tpm_counter_value == NULL) { // -fanalyzer
+            rc = TPM_FAIL;
+        }
+    }
     /* store tag */
     if (rc == 0) {	
 	rc = TPM_Sbuffer_Append16(sbuffer, TPM_TAG_COUNTER_VALUE); 
@@ -788,7 +793,7 @@ TPM_RESULT TPM_Process_IncrementCounter(tpm_state_t *tpm_state,
     uint32_t		outParamStart;	/* starting point of outParam's */
     uint32_t		outParamEnd;	/* ending point of outParam's */
     TPM_DIGEST		outParamDigest;
-    TPM_COUNTER_VALUE	*counterValue;	/* The counter value */
+    TPM_COUNTER_VALUE	*counterValue = NULL;	/* The counter value */
 
     printf("TPM_Process_IncrementCounter: Ordinal Entry\n");
     /*

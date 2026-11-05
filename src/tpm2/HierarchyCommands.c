@@ -3,7 +3,6 @@
 /*			     Hierarchy Commands					*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: HierarchyCommands.c 1047 2017-07-20 18:27:34Z kgoldman $	*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -55,81 +54,13 @@
 /*    arising in any way out of use or reliance upon this specification or any 	*/
 /*    information herein.							*/
 /*										*/
-/*  (c) Copyright IBM Corp. and others, 2016, 2017				*/
+/*  (c) Copyright IBM Corp. and others, 2016 - 2023				*/
 /*										*/
 /********************************************************************************/
 
 #include "Tpm.h"
-#include "CreatePrimary_fp.h"
-#ifdef TPM_CC_CreatePrimary  // Conditional expansion of this file
-TPM_RC
-TPM2_CreatePrimary(
-		   CreatePrimary_In    *in,            // IN: input parameter list
-		   CreatePrimary_Out   *out            // OUT: output parameter list
-		   )
-{
-    TPM_RC              result = TPM_RC_SUCCESS;
-    TPMT_PUBLIC         *publicArea;
-    DRBG_STATE           rand;
-    OBJECT              *newObject;
-    TPM2B_NAME           name;
-    // Input Validation
-    // Will need a place to put the result
-    newObject = FindEmptyObjectSlot(&out->objectHandle);
-    if(newObject == NULL)
-	return TPM_RC_OBJECT_MEMORY;
-    // Get the address of the public area in the new object
-    // (this is just to save typing)
-    publicArea = &newObject->publicArea;
-    *publicArea = in->inPublic.publicArea;
-    // Check attributes in input public area. CreateChecks() checks the things that
-    // are unique to creation and then validates the attributes and values that are
-    // common to create and load.
-    result = CreateChecks(NULL, publicArea,
-			  in->inSensitive.sensitive.data.t.size);
-    if(result != TPM_RC_SUCCESS)
-	return RcSafeAddToResult(result, RC_CreatePrimary_inPublic);
-    // Validate the sensitive area values
-    if(!AdjustAuthSize(&in->inSensitive.sensitive.userAuth,
-		       publicArea->nameAlg))
-	return TPM_RCS_SIZE + RC_CreatePrimary_inSensitive;
-    // Command output
-    // Compute the name using out->name as a scratch area (this is not the value
-    // that ultimately will be returned, then instantiate the state that will be
-    // used as a random number generator during the object creation.
-    // The caller does not know the seed values so the actual name does not have
-    // to be over the input, it can be over the unmarshaled structure.
-    DRBG_InstantiateSeeded(&rand,
-			   &HierarchyGetPrimarySeed(in->primaryHandle)->b,
-			   PRIMARY_OBJECT_CREATION,
-			   (TPM2B *)PublicMarshalAndComputeName(publicArea, &name),
-			   &in->inSensitive.sensitive.data.b);
-    newObject->attributes.primary = SET;
-    if(in->primaryHandle == TPM_RH_ENDORSEMENT)
-	newObject->attributes.epsHierarchy = SET;
-    // Create the primary object.
-    result = CryptCreateObject(newObject, &in->inSensitive.sensitive,
-			       (RAND_STATE *)&rand);
-    if(result != TPM_RC_SUCCESS)
-	return result;
-    // Set the publicArea and name from the computed values
-    out->outPublic.publicArea = newObject->publicArea;
-    out->name = newObject->name;
-    // Fill in creation data
-    FillInCreationData(in->primaryHandle, publicArea->nameAlg,
-		       &in->creationPCR, &in->outsideInfo, &out->creationData,
-		       &out->creationHash);
-    // Compute creation ticket
-    TicketComputeCreation(EntityGetHierarchy(in->primaryHandle), &out->name,
-			  &out->creationHash, &out->creationTicket);
-    // Set the remaining attributes for a loaded object
-    ObjectSetLoadedAttributes(newObject, in->primaryHandle);
-    return result;
-}
-#endif // CC_CreatePrimary
-#include "Tpm.h"
 #include "HierarchyControl_fp.h"
-#ifdef TPM_CC_HierarchyControl  // Conditional expansion of this file
+#if CC_HierarchyControl  // Conditional expansion of this file
 TPM_RC
 TPM2_HierarchyControl(
 		      HierarchyControl_In     *in             // IN: input parameter list
@@ -223,7 +154,7 @@ TPM2_HierarchyControl(
 #endif // CC_HierarchyControl
 #include "Tpm.h"
 #include "SetPrimaryPolicy_fp.h"
-#ifdef TPM_CC_SetPrimaryPolicy  // Conditional expansion of this file
+#if CC_SetPrimaryPolicy  // Conditional expansion of this file
 TPM_RC
 TPM2_SetPrimaryPolicy(
 		      SetPrimaryPolicy_In     *in             // IN: input parameter list
@@ -267,6 +198,16 @@ TPM2_SetPrimaryPolicy(
 	    NV_SYNC_PERSISTENT(lockoutAlg);
 	    NV_SYNC_PERSISTENT(lockoutPolicy);
 	    break;
+
+#define SET_ACT_POLICY(N)						\
+	    case TPM_RH_ACT_##N:					\
+	      go.ACT_##N.hashAlg = in->hashAlg;				\
+	      go.ACT_##N.authPolicy = in->authPolicy;			\
+	      g_clearOrderly = TRUE;					\
+	      break;
+
+	    FOR_EACH_ACT(SET_ACT_POLICY)
+
 	  default:
 	    FAIL(FATAL_ERROR_INTERNAL);
 	    break;
@@ -276,7 +217,7 @@ TPM2_SetPrimaryPolicy(
 #endif // CC_SetPrimaryPolicy
 #include "Tpm.h"
 #include "ChangePPS_fp.h"
-#ifdef TPM_CC_ChangePPS  // Conditional expansion of this file
+#if CC_ChangePPS  // Conditional expansion of this file
 TPM_RC
 TPM2_ChangePPS(
 	       ChangePPS_In    *in             // IN: input parameter list
@@ -291,6 +232,7 @@ TPM2_ChangePPS(
     // Internal Data Update
     // Reset platform hierarchy seed from RNG
     CryptRandomGenerate(sizeof(gp.PPSeed.t.buffer), gp.PPSeed.t.buffer);
+    gp.PPSeedCompatLevel = RuntimeProfileGetSeedCompatLevel(); // libtpms added
     // Create a new phProof value from RNG to prevent the saved platform
     // hierarchy contexts being loaded
     CryptRandomGenerate(sizeof(gp.phProof.t.buffer), gp.phProof.t.buffer);
@@ -303,6 +245,7 @@ TPM2_ChangePPS(
     NvFlushHierarchy(TPM_RH_PLATFORM);
     // Save hierarchy changes to NV
     NV_SYNC_PERSISTENT(PPSeed);
+    NV_SYNC_PERSISTENT(PPSeedCompatLevel); // libtpms added
     NV_SYNC_PERSISTENT(phProof);
     // Re-initialize PCR policies
 #if defined NUM_POLICY_PCR_GROUP && NUM_POLICY_PCR_GROUP > 0
@@ -320,7 +263,7 @@ TPM2_ChangePPS(
 #endif // CC_ChangePPS
 #include "Tpm.h"
 #include "ChangeEPS_fp.h"
-#ifdef TPM_CC_ChangeEPS  // Conditional expansion of this file
+#if CC_ChangeEPS  // Conditional expansion of this file
 TPM_RC
 TPM2_ChangeEPS(
 	       ChangeEPS_In    *in             // IN: input parameter list
@@ -335,6 +278,7 @@ TPM2_ChangeEPS(
     // Internal Data Update
     // Reset endorsement hierarchy seed from RNG
     CryptRandomGenerate(sizeof(gp.EPSeed.t.buffer), gp.EPSeed.t.buffer);
+    gp.EPSeedCompatLevel = RuntimeProfileGetSeedCompatLevel(); // libtpms added
     // Create new ehProof value from RNG
     CryptRandomGenerate(sizeof(gp.ehProof.t.buffer), gp.ehProof.t.buffer);
     // Enable endorsement hierarchy
@@ -352,6 +296,7 @@ TPM2_ChangeEPS(
     NvFlushHierarchy(TPM_RH_ENDORSEMENT);
     // Save hierarchy changes to NV
     NV_SYNC_PERSISTENT(EPSeed);
+    NV_SYNC_PERSISTENT(EPSeedCompatLevel); // libtpms added
     NV_SYNC_PERSISTENT(ehProof);
     NV_SYNC_PERSISTENT(endorsementAuth);
     NV_SYNC_PERSISTENT(endorsementAlg);
@@ -363,7 +308,7 @@ TPM2_ChangeEPS(
 #endif // CC_ChangeEPS
 #include "Tpm.h"
 #include "Clear_fp.h"
-#ifdef TPM_CC_Clear  // Conditional expansion of this file
+#if CC_Clear  // Conditional expansion of this file
 TPM_RC
 TPM2_Clear(
 	   Clear_In        *in             // IN: input parameter list
@@ -382,6 +327,7 @@ TPM2_Clear(
     // Internal Data Update
     // Reset storage hierarchy seed from RNG
     CryptRandomGenerate(sizeof(gp.SPSeed.t.buffer), gp.SPSeed.t.buffer);
+    gp.SPSeedCompatLevel = RuntimeProfileGetSeedCompatLevel(); // libtpms added
     // Create new shProof and ehProof value from RNG
     CryptRandomGenerate(sizeof(gp.shProof.t.buffer), gp.shProof.t.buffer);
     CryptRandomGenerate(sizeof(gp.ehProof.t.buffer), gp.ehProof.t.buffer);
@@ -426,7 +372,7 @@ TPM2_Clear(
 #endif // CC_Clear
 #include "Tpm.h"
 #include "ClearControl_fp.h"
-#ifdef TPM_CC_ClearControl  // Conditional expansion of this file
+#if CC_ClearControl  // Conditional expansion of this file
 TPM_RC
 TPM2_ClearControl(
 		  ClearControl_In     *in             // IN: input parameter list
@@ -450,7 +396,7 @@ TPM2_ClearControl(
 #endif // CC_ClearControl
 #include "Tpm.h"
 #include "HierarchyChangeAuth_fp.h"
-#ifdef TPM_CC_HierarchyChangeAuth  // Conditional expansion of this file
+#if CC_HierarchyChangeAuth  // Conditional expansion of this file
 #include "Object_spt_fp.h"
 TPM_RC
 TPM2_HierarchyChangeAuth(

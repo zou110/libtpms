@@ -633,7 +633,7 @@ static TPM_ORDINAL_TABLE tpm_ordinal_table[] =
      FALSE},
     
     {TPM_ORD_CreateMaintenanceArchive,
-#ifdef TPM_NOMAINTENANCE
+#if defined(TPM_NOMAINTENANCE) || defined(TPM_NOMAINTENANCE_COMMANDS)
      TPM_Process_Unused, TPM_Process_Unused,
      FALSE,
      FALSE,
@@ -1172,7 +1172,7 @@ static TPM_ORDINAL_TABLE tpm_ordinal_table[] =
      FALSE},
     
     {TPM_ORD_KillMaintenanceFeature,
-#ifdef TPM_NOMAINTENANCE
+#if defined(TPM_NOMAINTENANCE) || defined(TPM_NOMAINTENANCE_COMMANDS)
      TPM_Process_Unused, TPM_Process_Unused,
      FALSE,
      FALSE,
@@ -1256,7 +1256,7 @@ static TPM_ORDINAL_TABLE tpm_ordinal_table[] =
      FALSE},
     
     {TPM_ORD_LoadMaintenanceArchive,
-#ifdef TPM_NOMAINTENANCE
+#if defined(TPM_NOMAINTENANCE) || defined(TPM_NOMAINTENANCE_COMMANDS)
      TPM_Process_Unused, TPM_Process_Unused,
      FALSE,
      FALSE,
@@ -1275,7 +1275,7 @@ static TPM_ORDINAL_TABLE tpm_ordinal_table[] =
      FALSE},
     
     {TPM_ORD_LoadManuMaintPub,
-#ifdef TPM_NOMAINTENANCE
+#if defined(TPM_NOMAINTENANCE) || defined(TPM_NOMAINTENANCE_COMMANDS)
      TPM_Process_Unused, TPM_Process_Unused,
      FALSE,
      FALSE,
@@ -1567,7 +1567,7 @@ static TPM_ORDINAL_TABLE tpm_ordinal_table[] =
      FALSE},
     
     {TPM_ORD_ReadManuMaintPub,
-#ifdef TPM_NOMAINTENANCE
+#if defined(TPM_NOMAINTENANCE) || defined(TPM_NOMAINTENANCE_COMMANDS)
      TPM_Process_Unused, TPM_Process_Unused,
      FALSE,
      FALSE,
@@ -3381,7 +3381,7 @@ TPM_RESULT TPM_Process_GetCapability(tpm_state_t *tpm_state,
     unsigned char *	inParamEnd;		/* ending point of inParam's */
     TPM_DIGEST		inParamDigest;
     TPM_BOOL		auditStatus;		/* audit the ordinal */
-    TPM_BOOL		transportEncrypt;	/* wrapped in encrypted transport session */
+    TPM_BOOL		transportEncrypt = FALSE;/* wrapped in encrypted transport session */
     uint16_t		subCap16 = 0;		/* the subCap as a uint16_t */
     uint32_t		subCap32 = 0;		/* the subCap as a uint32_t */
     TPM_STORE_BUFFER	capabilityResponse;	/* response */
@@ -3764,7 +3764,7 @@ static TPM_RESULT TPM_GetCapability_CapOrd(TPM_STORE_BUFFER *capabilityResponse,
    Boolean value. TRUE means that the TPM supports the asymmetric algorithm for TPM_Sign, TPM_Seal,
    TPM_UnSeal and TPM_UnBind and related commands. FALSE indicates that the asymmetric algorithm is
    not supported for these types of commands. The TPM MAY return TRUE or FALSE for other than
-   asymmetric algoroithms that it supports. Unassigned and unsupported algorithm IDs return FALSE.
+   asymmetric algorithms that it supports. Unassigned and unsupported algorithm IDs return FALSE.
 */
 
 static TPM_RESULT TPM_GetCapability_CapAlg(TPM_STORE_BUFFER *capabilityResponse,
@@ -4844,7 +4844,7 @@ TPM_RESULT TPM_Process_GetCapabilitySigned(tpm_state_t *tpm_state,
     unsigned char *	inParamEnd;		/* ending point of inParam's */
     TPM_DIGEST		inParamDigest;
     TPM_BOOL		auditStatus;		/* audit the ordinal */
-    TPM_BOOL		transportEncrypt;	/* wrapped in encrypted transport session */
+    TPM_BOOL		transportEncrypt = FALSE;/* wrapped in encrypted transport session */
     TPM_BOOL		authHandleValid = FALSE;
     TPM_AUTH_SESSION_DATA *auth_session_data;	/* session data for authHandle */
     TPM_SECRET		*hmacKey;
@@ -5144,7 +5144,7 @@ TPM_RESULT TPM_Process_SetCapability(tpm_state_t *tpm_state,
     unsigned char *	inParamEnd;		/* ending point of inParam's */
     TPM_DIGEST		inParamDigest;
     TPM_BOOL		auditStatus;		/* audit the ordinal */
-    TPM_BOOL		transportEncrypt;	/* wrapped in encrypted transport session */
+    TPM_BOOL		transportEncrypt = FALSE;/* wrapped in encrypted transport session */
     TPM_BOOL		authHandleValid = FALSE;
     TPM_AUTH_SESSION_DATA *auth_session_data;	/* session data for authHandle */
     TPM_SECRET		*hmacKey;

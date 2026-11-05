@@ -40,6 +40,7 @@
 #define TPM_LIBRARY_INTERN_H
 
 #include <stdbool.h>
+
 #include "compiler.h"
 #include "tpm_library.h"
 
@@ -83,8 +84,11 @@ struct tpm_interface {
                            const unsigned char *buffer, uint32_t buflen);
     TPM_RESULT (*GetState)(enum TPMLIB_StateType st,
                            unsigned char **buffer, uint32_t *buflen);
+    TPM_RESULT (*SetProfile)(const char *profile);
+    TPM_BOOL (*WasManufactured)(void);
 };
 
+extern const struct tpm_interface DisabledInterface;
 extern const struct tpm_interface TPM12Interface;
 extern const struct tpm_interface TPM2Interface;
 
@@ -112,6 +116,8 @@ void TPMLIB_LogArray(unsigned int indent, const unsigned char *data,
      TPMLIB_LogPrintfA(~0, "libtpms/tpm12: "format, __VA_ARGS__)
 #define TPMLIB_LogTPM2Error(format, ...) \
      TPMLIB_LogPrintfA(~0, "libtpms/tpm2: "format, __VA_ARGS__)
+
+int TPMLIB_asprintf(char **strp, const char *fmt, ...);
 
 /* prototypes for TPM2 */
 TPM_RESULT TPM2_IO_Hash_Start(void);

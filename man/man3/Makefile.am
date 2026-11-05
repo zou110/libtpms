@@ -19,9 +19,11 @@ man3_PODS = \
 	TPMLIB_RegisterCallbacks.pod \
 	TPMLIB_SetBufferSize.pod \
 	TPMLIB_SetDebugFD.pod \
+	TPMLIB_SetProfile.pod \
 	TPMLIB_SetState.pod \
 	TPMLIB_ValidateState.pod \
 	TPMLIB_VolatileAll_Store.pod \
+	TPMLIB_WasManufactured.pod \
 	TPM_Malloc.pod
 
 man3_MANS = \
@@ -48,20 +50,31 @@ man3_MANS_generated = \
 	TPMLIB_Process.3 \
 	TPMLIB_SetDebugFD.3 \
 	TPMLIB_SetBufferSize.3 \
+	TPMLIB_SetProfile.3 \
 	TPMLIB_SetState.3 \
 	TPMLIB_RegisterCallbacks.3 \
 	TPMLIB_ValidateState.3 \
 	TPMLIB_VolatileAll_Store.3 \
+	TPMLIB_WasManufactured.3 \
 	TPM_Malloc.3
 
-man3_MANS += $(man3_MANs_generated)
+man3_MANS += $(man3_MANS_generated)
 
-%.3 : %.pod
-	@pod2man -r "libtpms" \
+# Ensure the build is reproducible, for details see:
+# https://reproducible-builds.org/docs/source-date-epoch/
+SUFFIXES: .pod .3
+.pod.3:
+	@if test -n "$$SOURCE_DATE_EPOCH"; then \
+		BUILD_DATE=$$(date +%F --utc --date="@$$SOURCE_DATE_EPOCH"); \
+	else \
+		BUILD_DATE=$$(date +%F); \
+	fi; \
+	pod2man -r "libtpms" \
 		-c "" \
-		-n $(basename $@) \
+		-n $(<:.pod=) \
+		--date="$$BUILD_DATE" \
 		--section=3 $< > $@
 
 EXTRA_DIST = $(man3_MANS) $(man3_PODS)
 
-CLEANFILES = $(man3_MANs_generated)
+CLEANFILES = $(man3_MANS_generated)

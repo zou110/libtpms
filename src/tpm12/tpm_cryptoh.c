@@ -176,6 +176,7 @@ void TPM_CertifyInfo_Init(TPM_CERTIFY_INFO *tpm_certify_info)
     return;
 }
 
+#if 0
 /* TPM_CertifyInfo_Load()
 
    deserialize the structure from a 'stream'
@@ -242,6 +243,7 @@ TPM_RESULT TPM_CertifyInfo_Load(TPM_CERTIFY_INFO *tpm_certify_info,
     }
     return rc;
 }
+#endif
 
 /* TPM_CertifyInfo_Store()
    
@@ -382,6 +384,7 @@ void TPM_CertifyInfo2_Init(TPM_CERTIFY_INFO2 *tpm_certify_info2)
     return;
 }
 
+#if 0
 /* TPM_CertifyInfo2_Load()
 
    deserialize the structure from a 'stream'
@@ -471,6 +474,7 @@ TPM_RESULT TPM_CertifyInfo2_Load(TPM_CERTIFY_INFO2 *tpm_certify_info2,
     }
     return rc;
 }
+#endif
 
 /* TPM_CertifyInfo2_Store()
    
@@ -1403,10 +1407,10 @@ TPM_RESULT TPM_MGF1_GenerateArray(unsigned char **array,
     }
     /* generate the MGF1 array */
     if (rc == 0) {
-	TPM_MGF1(*array,
-		 arrayLen,
-		 seed,
-		 seedLen);
+	rc = TPM_MGF1(*array,		// libtpms changed: assign rc
+		      arrayLen,
+		      seed,
+		      seedLen);
 	TPM_PrintFour("  TPM_MGF1_GenerateArray: MGF1", *array);
     }
     va_end(ap);
@@ -1593,7 +1597,7 @@ TPM_RESULT TPM_RSAPrivateDecryptH(unsigned char *decrypt_data,	/* decrypted data
     uint32_t		dbytes;
 
     printf(" TPM_RSAPrivateDecryptH: Data size %u bytes\n", encrypt_data_size);
-    TPM_PrintFour("  TPM_RSAPrivateDecryptH: Encrypt data", encrypt_data);
+    TPM_PrintFourLimit("  TPM_RSAPrivateDecryptH: Encrypt data", encrypt_data, encrypt_data_size);
     if (rc == 0) {
 	if (tpm_key == NULL) {
 	    printf("TPM_RSAPrivateDecryptH: Error, NULL key\n");
@@ -1642,7 +1646,7 @@ TPM_RESULT TPM_RSAPrivateDecryptH(unsigned char *decrypt_data,	/* decrypted data
 				   dbytes);
     }
     if (rc == 0) {
-	TPM_PrintFour(" TPM_RSAPrivateDecryptH: Decrypt data", decrypt_data);
+	TPM_PrintFourLimit(" TPM_RSAPrivateDecryptH: Decrypt data", decrypt_data, *decrypt_data_length);
     }
     return rc;
 }
@@ -1775,7 +1779,7 @@ TPM_RESULT TPM_RSAPublicEncrypt_Common(TPM_SIZED_BUFFER *enc_data,
     unsigned char	*encrypt_data = NULL;
     
     printf(" TPM_RSAPublicEncrypt_Common: Data size %lu bytes\n", (unsigned long)decrypt_data_size);
-    TPM_PrintFour(" TPM_RSAPublicEncrypt_Common: Decrypt data", decrypt_data);
+    TPM_PrintFourLimit(" TPM_RSAPublicEncrypt_Common: Decrypt data", decrypt_data, decrypt_data_size);
     /* check the key size vs the data size */
     if (rc == 0) {
 	if (decrypt_data_size > nbytes) {
@@ -1897,7 +1901,7 @@ TPM_RESULT TPM_RSASignH(unsigned char *signature,		/* output */
     uint32_t		dbytes;
     
     printf(" TPM_RSASignH: Message size %lu bytes\n", (unsigned long)message_size);
-    TPM_PrintFour("  TPM_RSASignH: Message", message);
+    TPM_PrintFourLimit("  TPM_RSASignH: Message", message, message_size);
     /* extract the public key from TPM_KEY */
     if (rc == 0) {
 	rc = TPM_Key_GetPublicKey(&nbytes, &narr, tpm_key);
@@ -2066,7 +2070,7 @@ TPM_RESULT TPM_RSA_padding_add_PKCS1_OAEP(unsigned char *em, uint32_t emLen,
     unsigned char *maskedSeed;
 
     printf(" TPM_RSA_padding_add_PKCS1_OAEP: fLen %d emLen %d\n", fLen, emLen);
-    TPM_PrintFour("  TPM_RSA_padding_add_PKCS1_OAEP: from", from);
+    TPM_PrintFourLimit("  TPM_RSA_padding_add_PKCS1_OAEP: from", from, fLen);
     TPM_PrintFour("  TPM_RSA_padding_add_PKCS1_OAEP: pHash", pHash);
     TPM_PrintFour("  TPM_RSA_padding_add_PKCS1_OAEP: seed", seed);
     
@@ -2136,7 +2140,7 @@ TPM_RESULT TPM_RSA_padding_add_PKCS1_OAEP(unsigned char *em, uint32_t emLen,
 	/* NOTE Created directly in em */
 	
 	/* 12. Output EM. */
-	TPM_PrintFour("  TPM_RSA_padding_add_PKCS1_OAEP: em", em);
+	TPM_PrintFourLimit("  TPM_RSA_padding_add_PKCS1_OAEP: em", em, emLen);
     }
     free(dbMask);		/* @1 */
     return rc;
@@ -2180,7 +2184,7 @@ TPM_RESULT TPM_RSA_padding_check_PKCS1_OAEP(unsigned char *to, uint32_t *tLen, u
     size_t		i;
 
     printf(" TPM_RSA_padding_check_PKCS1_OAEP: emLen %d tSize %d\n", emLen, tSize);
-    TPM_PrintFour("  TPM_RSA_padding_check_PKCS1_OAEP: em", em);
+    TPM_PrintFourLimit("  TPM_RSA_padding_check_PKCS1_OAEP: em", em, emLen);
 
     dbMask = NULL;			/* freed @1 */
     
@@ -2260,7 +2264,7 @@ TPM_RESULT TPM_RSA_padding_check_PKCS1_OAEP(unsigned char *to, uint32_t *tLen, u
     if (rc == 0) {
 	memcpy(to, db + i, *tLen);
 	printf("  TPM_RSA_padding_check_PKCS1_OAEP: tLen %d \n", *tLen);
-	TPM_PrintFour("  TPM_RSA_padding_check_PKCS1_OAEP: to", to);
+	TPM_PrintFourLimit("  TPM_RSA_padding_check_PKCS1_OAEP: to", to, *tLen);
 	TPM_PrintFour("  TPM_RSA_padding_check_PKCS1_OAEP: pHash", pHash);
 	TPM_PrintFour("  TPM_RSA_padding_check_PKCS1_OAEP: seed", seed);
     }
@@ -2357,7 +2361,8 @@ TPM_RESULT TPM_CryptoTest(void)
     unsigned char *q;		/* private key prime */
     unsigned char *d;		/* private key (private exponent) */
     unsigned char encrypt_data[2048/8];		/* encrypted data */
-    
+    unsigned char signature[2048/8];		/* signature; libtpms added */
+
     printf(" TPM_CryptoTest:\n");
     encStream = NULL;		/* freed @1 */
     decStream = NULL;		/* freed @2 */
@@ -2369,7 +2374,7 @@ TPM_RESULT TPM_CryptoTest(void)
     if (rc == 0) {
 	printf(" TPM_CryptoTest: Test 1 - SHA1 one part\n");
 	rc = TPM_SHA1(actual,
-		      sizeof(buffer1) - 1, buffer1,
+		      (uint32_t)sizeof(buffer1) - 1, buffer1,
 		      0, NULL);
     }
     if (rc == 0) {
@@ -2385,7 +2390,7 @@ TPM_RESULT TPM_CryptoTest(void)
 	printf(" TPM_CryptoTest: Test 2 - SHA1 two parts\n");
 	rc = TPM_SHA1(actual,
 		      16, buffer1,	/* first 16 */
-		      sizeof(buffer1) - 17, buffer1 + 16,	/* rest */
+		      (uint32_t)sizeof(buffer1) - 17, buffer1 + 16,	/* rest */
 		      0, NULL);
     }
     if (rc == 0) {
@@ -2730,6 +2735,66 @@ TPM_RESULT TPM_CryptoTest(void)
 	    rc = TPM_FAILEDSELFTEST;
 	}
     }
+
+// libtpms added begin
+
+    if (rc == 0) {
+	printf(" TPM_CryptoTest: Test 11a - RSA sign with PKCS1v15 padding\n");
+	rc = TPM_RSASign(signature,
+			 &actual_size,
+			 sizeof(signature),
+			 TPM_SS_RSASSAPKCS1v15_SHA1,
+			 expect1,
+			 sizeof(expect1),
+			 n,				/* public modulus */
+			 2048/8,
+			 tpm_default_rsa_exponent,	/* public exponent */
+			 3,
+			 d,				/* private exponent */
+			 2048/8);
+    }
+    if (rc == 0) {
+	rc = TPM_RSAVerify(signature,		/* input signature buffer */
+			   sizeof(signature),	/* input, size of signature buffer */
+			   TPM_SS_RSASSAPKCS1v15_SHA1, /* input, type of signature */
+			   expect1,		/* message */
+			   sizeof(expect1),	/* message size */
+			   n,			/* public modulus */
+			   2048/8,
+			   tpm_default_rsa_exponent,/* public exponent */
+			   3);
+    }
+
+#if 0
+    /* Verification with TPM_SS_RSASSAPKCS1v15_DER is not supported */
+    if (rc == 0) {
+	printf(" TPM_CryptoTest: Test 11b - RSA sign with PKCS1v15_DER padding\n");
+	rc = TPM_RSASign(signature,
+			 &actual_size,
+			 sizeof(signature),
+			 TPM_SS_RSASSAPKCS1v15_DER,
+			 expect1,
+			 sizeof(expect1),
+			 n,				/* public modulus */
+			 2048/8,
+			 tpm_default_rsa_exponent,	/* public exponent */
+			 3,
+			 d,				/* private exponent */
+			 2048/8);
+    }
+    if (rc == 0) {
+	rc = TPM_RSAVerify(signature,		/* input signature buffer */
+			   sizeof(signature),	/* input, size of signature buffer */
+			   TPM_SS_RSASSAPKCS1v15_DER, /* input, type of signature */
+			   expect1,		/* message */
+			   sizeof(expect1),	/* message size */
+			   n,			/* public modulus */
+			   2048/8,
+			   tpm_default_rsa_exponent,/* public exponent */
+			   3);
+    }
+#endif // libtpms added end
+
     /* run library specific self tests as required */
     if (rc == 0) {
 	rc = TPM_Crypto_TestSpecific();

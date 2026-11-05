@@ -38,40 +38,36 @@
 
 #include <config.h>
 
-#define _GNU_SOURCE
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdbool.h>
 
 #ifndef LIB_EXPORT
 #define LIB_EXPORT
 #endif
-#include "tpm2/Tpm.h"
-#include "tpm2/Manufacture_fp.h"
-#include "tpm2/Platform_fp.h"
-#include "tpm2/ExecCommand_fp.h"
-#include "tpm2/TpmTcpProtocol.h"
-#include "tpm2/Simulator_fp.h"
-#include "tpm2/_TPM_Hash_Data_fp.h"
-#include "tpm2/_TPM_Init_fp.h"
-#include "tpm2/StateMarshal.h"
-#include "tpm2/PlatformData.h"
-#include "tpm2/Volatile.h"
+
+#include "Tpm.h"
+#include <TpmTcpProtocol.h>
+#include <Simulator_fp.h>
+#include "PlatformData.h"
+#include "PlatformInternal.h"
+#include "StateMarshal.h"
+#include "Volatile.h"
+#include "ExpDCache_fp.h"
 
 #define TPM_HAVE_TPM2_DECLARATIONS
-#include "tpm12/tpm_nvfile.h" // TPM_NVRAM_Loaddata()
+#include "tpm_nvfile.h" // TPM_NVRAM_Loaddata()
 #include "tpm_error.h"
 #include "tpm_library_intern.h"
 #include "tpm_nvfilename.h"
 
-extern BOOL      g_inFailureMode;
 static BOOL      reportedFailureCommand;
+static char     *g_profile;
+static TPM_BOOL  g_wasManufactured;
 
 /*
  * Check whether the main NVRAM file exists. Return TRUE if it doesn, FALSE otherwise
  */
-TPM_BOOL _TPM2_CheckNVRAMFileExists(void)
+static TPM_BOOL _TPM2_CheckNVRAMFileExists(bool *has_nvram_loaddata_callback)
 {
 #ifdef TPM_LIBTPMS_CALLBACKS
     struct libtpms_callbacks *cbs = TPMLIB_GetCallbacks();
@@ -81,6 +77,7 @@ TPM_BOOL _TPM2_CheckNVRAMFileExists(void)
     uint32_t tpm_number = 0;
     TPM_RESULT ret;
 
+    *has_nvram_loaddata_callback = cbs->tpm_nvram_loaddata != NULL;
     if (cbs->tpm_nvram_loaddata) {
         ret = cbs->tpm_nvram_loaddata(&data, &length, tpm_number, name);
         free(data);
@@ -88,17 +85,23 @@ TPM_BOOL _TPM2_CheckNVRAMFileExists(void)
         if (ret != TPM_RETRY)
             return TRUE;
     }
+#else
+    *has_nvram_loaddata_callback = FALSE;
 #endif /* TPM_LIBTPMS_CALLBACKS */
+
     return FALSE;
 }
 
-TPM_RESULT TPM2_MainInit(void)
+static TPM_RESULT TPM2_MainInit(void)
 {
     TPM_RESULT ret = TPM_SUCCESS;
     bool has_cached_state;
+    bool has_nvram_file;
+    bool has_nvram_loaddata_callback;
 
-    g_inFailureMode = FALSE;
+    _plat_internal_resetFailureData();
     reportedFailureCommand = FALSE;
+    g_wasManufactured = FALSE;
 
 #ifdef TPM_LIBTPMS_CALLBACKS
     struct libtpms_callbacks *cbs = TPMLIB_GetCallbacks();
@@ -119,10 +122,28 @@ TPM_RESULT TPM2_MainInit(void)
     _rpc__Signal_PowerOff();
 
     has_cached_state = HasCachedState(TPMLIB_STATE_PERMANENT);
+    has_nvram_file = _TPM2_CheckNVRAMFileExists(&has_nvram_loaddata_callback);
 
-    if (!has_cached_state && !_TPM2_CheckNVRAMFileExists()) {
-        _plat__NVEnable(NULL);
-        TPM_Manufacture(TRUE);
+    if (!has_cached_state) {
+        if (!has_nvram_file) {
+            ret = _plat__NVEnable(NULL, 0);
+            if (ret)
+                TPMLIB_LogTPM2Error(
+                    "%s: _plat__NVEnable(NULL) failed: %d\n",
+                    __func__, ret);
+            if (TPM_Manufacture(TRUE, g_profile) < 0 || _plat__InFailureMode()) {
+                TPMLIB_LogTPM2Error("%s: TPM_Manufacture(TRUE) failed or TPM in "
+                                    "failure mode\n", __func__);
+                reportedFailureCommand = TRUE;
+            } else {
+                g_wasManufactured = TRUE;
+            }
+        }
+    } else if (!has_nvram_loaddata_callback) {
+        ret = _plat__NVEnable_NVChipFile(NULL);
+        if (ret)
+            TPMLIB_LogTPM2Error("%s: _plat__NVEnable_File(NULL) failed: %d\n",
+                                __func__, ret);
     }
 
     _rpc__Signal_PowerOn(FALSE);
@@ -130,7 +151,7 @@ TPM_RESULT TPM2_MainInit(void)
     _rpc__Signal_NvOn();
 
     if (ret == TPM_SUCCESS) {
-        if (g_inFailureMode)
+        if (_plat__InFailureMode())
             ret = TPM_RC_FAILURE;
     }
 
@@ -141,16 +162,20 @@ TPM_RESULT TPM2_MainInit(void)
     return ret;
 }
 
-void TPM2_Terminate(void)
+static void TPM2_Terminate(void)
 {
     TPM_TearDown();
 
     _rpc__Signal_PowerOff();
+    ExpDCacheFree();
+
+    free(g_profile);
+    g_profile = NULL;
 }
 
-TPM_RESULT TPM2_Process(unsigned char **respbuffer, uint32_t *resp_size,
-                        uint32_t *respbufsize,
-		        unsigned char *command, uint32_t command_size)
+static TPM_RESULT TPM2_Process(unsigned char **respbuffer, uint32_t *resp_size,
+                               uint32_t *respbufsize,
+                               unsigned char *command, uint32_t command_size)
 {
     uint8_t locality = 0;
     _IN_BUFFER req;
@@ -163,7 +188,8 @@ TPM_RESULT TPM2_Process(unsigned char **respbuffer, uint32_t *resp_size,
     if (cbs->tpm_io_getlocality) {
         TPM_MODIFIER_INDICATOR locty;
 
-        locality = cbs->tpm_io_getlocality(&locty, 0);
+        /* called function is trusted and must return valid value */
+        cbs->tpm_io_getlocality(&locty, 0);
 
         locality = locty;
     }
@@ -173,15 +199,15 @@ TPM_RESULT TPM2_Process(unsigned char **respbuffer, uint32_t *resp_size,
     req.Buffer = command;
 
     /* have the TPM 2 write directly into the response buffer */
-    if (*respbufsize < TPM_BUFFER_MAX || !*respbuffer) {
-        tmp = realloc(*respbuffer, TPM_BUFFER_MAX);
+    if (*respbufsize < TPM2_BUFFER_MAX || !*respbuffer) {
+        tmp = realloc(*respbuffer, TPM2_BUFFER_MAX);
         if (!tmp) {
             TPMLIB_LogTPM2Error("Could not allocated %u bytes.\n",
-                                TPM_BUFFER_MAX);
+                                TPM2_BUFFER_MAX);
             return TPM_SIZE;
         }
         *respbuffer = tmp;
-        *respbufsize = TPM_BUFFER_MAX;
+        *respbufsize = TPM2_BUFFER_MAX;
     }
     resp.BufferSize = *respbufsize;
     resp.Buffer = *respbuffer;
@@ -200,9 +226,13 @@ TPM_RESULT TPM2_Process(unsigned char **respbuffer, uint32_t *resp_size,
         memcpy(*respbuffer, resp.Buffer, resp.BufferSize);
     }
 
-    *resp_size = resp.BufferSize;
+    /*
+     * Limit the response buffer size to the TPMLIB_SetBufferSize-negotiated
+     * maximum response size even if this means we truncate the response.
+     */
+    *resp_size = MIN(resp.BufferSize, TPM2_GetBufferSize());
 
-    if (g_inFailureMode && !reportedFailureCommand) {
+    if (_plat__InFailureMode() && !reportedFailureCommand) {
         reportedFailureCommand = TRUE;
         TPMLIB_LogTPM2Error("%s: Entered failure mode through command:\n",
                             __func__);
@@ -250,53 +280,65 @@ TPM_RESULT TPM2_PersistentAllStore(unsigned char **buf,
     return ret;
 }
 
-TPM_RESULT TPM2_VolatileAllStore(unsigned char **buffer,
-                                 uint32_t *buflen)
+static TPM_RESULT TPM2_VolatileAllStore(unsigned char **buf,
+                                        uint32_t *buflen)
 {
-    TPM_RESULT rc = 0;
-    INT32 size = NV_MEMORY_SIZE;
-    UINT16 written;
-    unsigned char *statebuffer = NULL;
+    TPM_RESULT ret = TPM_SUCCESS;
+    unsigned char *nbuffer;
+    UINT32 written = 0;
+    BYTE *buffer;
+    INT32 size;
 
-    *buffer = NULL;
-    statebuffer = malloc(size);
-    if (!statebuffer) {
-        TPMLIB_LogTPM2Error("Could not allocate %u bytes.\n", size);
-        return TPM_SIZE;
-    }
+    *buflen = 64 * 1024;
+    *buf = NULL;
 
-    /* statebuffer will change */
-    *buffer = statebuffer;
+    /* the marshal functions do not indicate insufficient
+       buffer; to make sure we didn't run out of buffer,
+       we check that enough room for the biggest type of
+       chunk (32k) is available and try again. */
+    do {
+        *buflen += 32 * 1024;
 
-    written = VolatileSave(&statebuffer, &size);
-    if (written >= size) {
-        free(*buffer);
-        *buffer = NULL;
-        rc = TPM_FAIL;
-    } else {
-        *buflen = written;
-    }
+        nbuffer = realloc(*buf, *buflen);
+        if (nbuffer == NULL) {
+            free(*buf);
+            *buf = NULL;
+            ret = TPM_SIZE;
+            written = 0;
+            break;
+        }
 
-    return rc;
+        *buf = buffer = nbuffer;
+        size = *buflen;
+        written = VolatileSave(&buffer, &size);
+    } while (size < 32 * 1024);
+
+    *buflen = written;
+
+    return ret;
 }
 
-TPM_RESULT TPM2_CancelCommand(void)
+static TPM_RESULT TPM2_CancelCommand(void)
 {
     _rpc__Signal_CancelOn();
 
     return TPM_SUCCESS;
 }
 
-TPM_RESULT TPM2_GetTPMProperty(enum TPMLIB_TPMProperty prop,
-                               int *result)
+static TPM_RESULT TPM2_GetTPMProperty(enum TPMLIB_TPMProperty prop,
+                                      int *result)
 {
     switch (prop) {
-    case  TPMPROP_TPM_RSA_KEY_LENGTH_MAX:
+    case TPMPROP_TPM_RSA_KEY_LENGTH_MAX:
         *result = MAX_RSA_KEY_BITS;
         break;
 
-    case  TPMPROP_TPM_KEY_HANDLES:
+    case TPMPROP_TPM_KEY_HANDLES:
         *result = MAX_HANDLE_NUM;
+        break;
+
+    case TPMPROP_TPM2_BUFFER_MAX: /* v0.11 */
+        *result = TPM2_BUFFER_MAX;
         break;
 
     /* not supported for TPM 2 */
@@ -327,13 +369,13 @@ TPM_RESULT TPM2_GetTPMProperty(enum TPMLIB_TPMProperty prop,
  *
  * Return a JSON document with contents queried for by the user's passed flags
  */
-char *TPM2_GetInfo(enum TPMLIB_InfoFlags flags)
+static char *TPM2_GetInfo(enum TPMLIB_InfoFlags flags)
 {
-    const char *tpmspec =
+    const char *tpmspec_temp =
     "\"TPMSpecification\":{"
         "\"family\":\"2.0\","
-        "\"level\":" STRINGIFY(SPEC_LEVEL) ","
-        "\"revision\":" STRINGIFY(SPEC_VERSION)
+        "\"level\": %u,"
+        "\"revision\": %u"
     "}";
     const char *tpmattrs_temp =
     "\"TPMAttributes\":{"
@@ -341,29 +383,227 @@ char *TPM2_GetInfo(enum TPMLIB_InfoFlags flags)
         "\"version\":\"id:%08X\","
         "\"model\":\"swtpm\""
     "}";
+    const char *tpmfeatures_temp =
+    "\"TPMFeatures\":{"
+        "\"RSAKeySizes\":[%s],"
+        "\"CamelliaKeySizes\":[%s]"
+#if ALG_SM4
+        ", \"SM4KeySizes\":[128]"
+#endif
+    "}";
+    const char *runtimeAlgorithms_temp =
+    "\"RuntimeAlgorithms\":{"
+        "\"Implemented\":%s,"
+        "\"CanBeDisabled\":%s,"
+        "\"Enabled\":%s,"
+        "\"Disabled\":%s"
+    "}";
+    const char *runtimeCommands_temp =
+    "\"RuntimeCommands\":{"
+        "\"Implemented\":%s,"
+        "\"CanBeDisabled\":%s,"
+        "\"Enabled\":%s,"
+        "\"Disabled\":%s"
+    "}";
+    const char *runtimeAttributes_temp =
+    "\"RuntimeAttributes\":{"
+        "\"Implemented\":%s,"
+        "\"CanBeDisabled\":%s,"
+        "\"Enabled\":%s,"
+        "\"Disabled\":%s"
+    "}";
+    const char *tpmProfile_temp = "\"ActiveProfile\":%s";
+    const char *availableProfiles_temp =
+    "\"AvailableProfiles\":["
+        "%s%s%s"
+    "]";
     char *fmt = NULL, *buffer;
     bool printed = false;
+    char *tpmspec = NULL;
     char *tpmattrs = NULL;
+    char *tpmfeatures = NULL;
+    char rsakeys[32];
+    char camelliakeys[16];
+    SPEC_CAPABILITY_VALUE spec_capability_value = {0};
+    char *runtimeAlgos[RUNTIME_ALGO_NUM] = { NULL, };
+    char *runtimeCmds[RUNTIME_CMD_NUM] = { NULL, };
+    char *runtimeAttrs[RUNTIME_ATTR_NUM] = { NULL, };
+    enum RuntimeAlgorithmType rat;
+    enum RuntimeCommandType rct;
+    enum RuntimeAttributeType rabt;
+    char *runtimeAlgorithms = NULL;
+    char *runtimeCommands = NULL;
+    char *runtimeAttributes = NULL;
+    char *profile = NULL;
+    const char *profileJSON;
+    char *availableProfiles = NULL;
+    char *tmp = NULL;
+    size_t n;
 
     if (!(buffer = strdup("{%s%s%s}")))
         return NULL;
 
     if ((flags & TPMLIB_INFO_TPMSPECIFICATION)) {
+        _plat_GetSpecCapabilityValue(&spec_capability_value);
+
         fmt = buffer;
         buffer = NULL;
-        if (asprintf(&buffer, fmt, "", tpmspec, "%s%s%s") < 0)
+        if (TPMLIB_asprintf(&tpmspec, tpmspec_temp,
+                            spec_capability_value.tpmSpecLevel,
+                            spec_capability_value.tpmSpecVersion) < 0)
+            goto error;
+        if (TPMLIB_asprintf(&buffer, fmt, "", tpmspec, "%s%s%s") < 0)
             goto error;
         free(fmt);
         printed = true;
     }
 
     if ((flags & TPMLIB_INFO_TPMATTRIBUTES)) {
+        uint32_t firmware_v1 = _plat__GetTpmFirmwareVersionHigh();
+
         fmt = buffer;
         buffer = NULL;
-        if (asprintf(&tpmattrs, tpmattrs_temp, FIRMWARE_V1) < 0)
+        if (TPMLIB_asprintf(&tpmattrs, tpmattrs_temp, firmware_v1) < 0)
             goto error;
-        if (asprintf(&buffer, fmt,  printed ? "," : "",
-                     tpmattrs, "%s%s%s") < 0)
+        if (TPMLIB_asprintf(&buffer, fmt,  printed ? "," : "",
+                             tpmattrs, "%s%s%s") < 0)
+            goto error;
+        free(fmt);
+        printed = true;
+    }
+
+    if ((flags & TPMLIB_INFO_TPMFEATURES)) {
+        fmt = buffer;
+        buffer = NULL;
+        n = snprintf(rsakeys, sizeof(rsakeys), "%s2048%s%s",
+                     RSA_1024 ? "1024," : "",
+                     RSA_3072 ? ",3072" : "",
+                     RSA_4096 ? ",4096" : "");
+        if (n >= sizeof(rsakeys))
+            goto error;
+        n = snprintf(camelliakeys, sizeof(camelliakeys), "%s%s%s",
+                     CAMELLIA_128 ? "128" : "",
+                     CAMELLIA_192 ? ",192" : "",
+                     CAMELLIA_256 ? ",256" : "");
+        if (n >= sizeof(camelliakeys))
+            goto error;
+        if (TPMLIB_asprintf(&tpmfeatures, tpmfeatures_temp,
+                            rsakeys, camelliakeys) < 0)
+            goto error;
+        if (TPMLIB_asprintf(&buffer, fmt,  printed ? "," : "",
+                            tpmfeatures, "%s%s%s") < 0)
+            goto error;
+        free(fmt);
+        printed = true;
+    }
+
+    if ((flags & TPMLIB_INFO_RUNTIME_ALGORITHMS)) {
+        fmt = buffer;
+        buffer = NULL;
+        for (rat = RUNTIME_ALGO_IMPLEMENTED; rat < RUNTIME_ALGO_NUM; rat++) {
+            runtimeAlgos[rat] = RuntimeAlgorithmPrint(&g_RuntimeProfile.RuntimeAlgorithm, rat);
+            if (!runtimeAlgos[rat])
+                goto error;
+        }
+        if (TPMLIB_asprintf(&runtimeAlgorithms, runtimeAlgorithms_temp,
+                            runtimeAlgos[RUNTIME_ALGO_IMPLEMENTED],
+                            runtimeAlgos[RUNTIME_ALGO_CAN_BE_DISABLED],
+                            runtimeAlgos[RUNTIME_ALGO_ENABLED],
+                            runtimeAlgos[RUNTIME_ALGO_DISABLED]) < 0)
+            goto error;
+        if (TPMLIB_asprintf(&buffer, fmt,  printed ? "," : "",
+                            runtimeAlgorithms, "%s%s%s") < 0)
+            goto error;
+        free(fmt);
+        printed = true;
+    }
+
+    if ((flags & TPMLIB_INFO_RUNTIME_COMMANDS)) {
+        fmt = buffer;
+        buffer = NULL;
+        for (rct = RUNTIME_CMD_IMPLEMENTED; rct < RUNTIME_CMD_NUM; rct++) {
+            runtimeCmds[rct] = RuntimeCommandsPrint(&g_RuntimeProfile.RuntimeCommands, rct,
+                                                    "\"");
+            if (!runtimeCmds[rct])
+                goto error;
+        }
+        if (TPMLIB_asprintf(&runtimeCommands, runtimeCommands_temp,
+                            runtimeCmds[RUNTIME_CMD_IMPLEMENTED],
+                            runtimeCmds[RUNTIME_CMD_CAN_BE_DISABLED],
+                            runtimeCmds[RUNTIME_CMD_ENABLED],
+                            runtimeCmds[RUNTIME_CMD_DISABLED]) < 0)
+            goto error;
+        if (TPMLIB_asprintf(&buffer, fmt,  printed ? "," : "",
+                            runtimeCommands, "%s%s%s") < 0)
+            goto error;
+        free(fmt);
+        printed = true;
+    }
+
+    if ((flags & TPMLIB_INFO_RUNTIME_ATTRIBUTES)) {
+        fmt = buffer;
+        buffer = NULL;
+        for (rabt = RUNTIME_ATTR_IMPLEMENTED; rabt < RUNTIME_ATTR_NUM; rabt++) {
+            runtimeAttrs[rabt] = RuntimeAttributesGet(&g_RuntimeProfile.RuntimeAttributes, rabt);
+            if (!runtimeAttrs[rabt])
+                goto error;
+        }
+        if (TPMLIB_asprintf(&runtimeAttributes, runtimeAttributes_temp,
+                            runtimeAttrs[RUNTIME_ATTR_IMPLEMENTED],
+                            runtimeAttrs[RUNTIME_ATTR_CAN_BE_DISABLED],
+                            runtimeAttrs[RUNTIME_ATTR_ENABLED],
+                            runtimeAttrs[RUNTIME_ATTR_DISABLED]) < 0)
+            goto error;
+        if (TPMLIB_asprintf(&buffer, fmt,  printed ? "," : "",
+                            runtimeAttributes, "%s%s%s") < 0)
+            goto error;
+        free(fmt);
+        printed = true;
+    }
+
+    if ((flags & TPMLIB_INFO_ACTIVE_PROFILE) &&
+        (profileJSON = RuntimeProfileGetJSON(&g_RuntimeProfile))) {
+        fmt = buffer;
+        buffer = NULL;
+        if (TPMLIB_asprintf(&profile, tpmProfile_temp, profileJSON) < 0)
+            goto error;
+        if (TPMLIB_asprintf(&buffer, fmt, printed ? "," : "",
+                            profile, "%s%s%s") < 0)
+            goto error;
+        free(fmt);
+        printed = true;
+    }
+
+    if ((flags & TPMLIB_INFO_AVAILABLE_PROFILES)) {
+        size_t idx = 0;
+        char *json = NULL;
+
+        fmt = buffer; // keep here in case of 'goto error'
+        buffer = NULL;
+
+        tmp = NULL;
+
+        while (RuntimeProfileGetByIndex(idx, &json) == TPM_RC_SUCCESS) {
+            if (TPMLIB_asprintf(&availableProfiles,
+                                idx > 0 ? tmp : availableProfiles_temp,
+                                idx > 0 ? "," : "",
+                                json,
+                                "%s%s%s") < 0) {
+                free(json);
+                goto error;
+            }
+
+            free(json);
+            free(tmp);
+            tmp = availableProfiles;
+            idx++;
+        }
+        availableProfiles = NULL;
+        if (TPMLIB_asprintf(&availableProfiles, tmp, "", "", "") < 0)
+            goto error;
+
+        if (TPMLIB_asprintf(&buffer, fmt, printed ? "," : "",
+                            availableProfiles, "%s%s%s") < 0)
             goto error;
         free(fmt);
         printed = true;
@@ -372,30 +612,50 @@ char *TPM2_GetInfo(enum TPMLIB_InfoFlags flags)
     /* nothing else to add */
     fmt = buffer;
     buffer = NULL;
-    if (asprintf(&buffer, fmt, "", "", "") < 0)
+    if (TPMLIB_asprintf(&buffer, fmt, "", "", "") < 0)
         goto error;
 
+exit:
     free(fmt);
+    free(tpmspec);
     free(tpmattrs);
+    free(tpmfeatures);
+    free(profile);
+    for (rat = RUNTIME_ALGO_IMPLEMENTED; rat < RUNTIME_ALGO_NUM; rat++)
+        free(runtimeAlgos[rat]);
+    for (rct = RUNTIME_CMD_IMPLEMENTED; rct < RUNTIME_CMD_NUM; rct++)
+        free(runtimeCmds[rct]);
+    for (rabt = RUNTIME_ATTR_IMPLEMENTED; rabt < RUNTIME_ATTR_NUM; rabt++)
+        free(runtimeAttrs[rabt]);
+    free(runtimeAlgorithms);
+    free(runtimeCommands);
+    free(runtimeAttributes);
+    free(availableProfiles);
+    free(tmp);
 
     return buffer;
 
 error:
-    free(fmt);
     free(buffer);
-    free(tpmattrs);
-
-    return NULL;
+    buffer = NULL;
+    goto exit;
 }
 
-static uint32_t tpm2_buffersize = TPM_BUFFER_MAX;
+static uint32_t tpm2_buffersize = TPM2_BUFFER_MAX;
 
-uint32_t TPM2_SetBufferSize(uint32_t wanted_size,
-                            uint32_t *min_size,
-                            uint32_t *max_size)
+static uint32_t TPM2_SetBufferSize(uint32_t wanted_size,
+                                   uint32_t *min_size,
+                                   uint32_t *max_size)
 {
-    const uint32_t min = MAX_CONTEXT_SIZE + 128;
-    const uint32_t max = TPM_BUFFER_MAX;
+    /*
+     * The maximum size is equivalent to the size of the buffer supported by
+     * TPM 2 TIS and SPAPR (= 4kb). The CRB only supports 3968 bytes. No command
+     * or response of the TPM 2 currently requires that many bytes. The maximum
+     * buffer size used for requests or responses is related to TPMS_CONTEXT
+     * (plus a generous 128 bytes) and the TPM_ContextLoad/Save commands.
+     */
+    const uint32_t min = sizeof(TPMS_CONTEXT) + 128;
+    const uint32_t max = TPM2_BUFFER_MAX;
 
     if (min_size)
         *min_size = min;
@@ -424,20 +684,16 @@ uint32_t TPM2_GetBufferSize(void)
  * Validate the state blobs to check whether they can be
  * successfully used by a TPM_INIT.
 */
-TPM_RESULT TPM2_ValidateState(enum TPMLIB_StateType st,
-                              unsigned int flags)
+static TPM_RESULT TPM2_ValidateState(enum TPMLIB_StateType st,
+                                     unsigned int flags LIBTPMS_ATTR_UNUSED)
 {
     TPM_RESULT ret = TPM_SUCCESS;
     TPM_RC rc = TPM_RC_SUCCESS;
     unsigned char *data = NULL;
     uint32_t length;
-    unsigned char bak_NV[NV_MEMORY_SIZE];
     INT32 size;
     BYTE *buffer;
     BOOL restored;
-
-    /* make backup of current NvChip memory */
-    memcpy(bak_NV, s_NV, sizeof(bak_NV));
 
 #ifdef TPM_LIBTPMS_CALLBACKS
     struct libtpms_callbacks *cbs = TPMLIB_GetCallbacks();
@@ -487,8 +743,8 @@ TPM_RESULT TPM2_ValidateState(enum TPMLIB_StateType st,
  * it from files. In case the TPM is running, we get it from the running
  * TPM.
  */
-TPM_RESULT TPM2_GetState(enum TPMLIB_StateType st,
-                         unsigned char **buffer, uint32_t *buflen)
+static TPM_RESULT TPM2_GetState(enum TPMLIB_StateType st,
+                                unsigned char **buffer, uint32_t *buflen)
 {
     TPM_RESULT ret = TPM_FAIL;
 
@@ -542,8 +798,8 @@ TPM_RESULT TPM2_GetState(enum TPMLIB_StateType st,
  *          previous state
  * @buflen: length of the buffer
  */
-TPM_RESULT TPM2_SetState(enum TPMLIB_StateType st,
-                         const unsigned char *buffer, uint32_t buflen)
+static TPM_RESULT TPM2_SetState(enum TPMLIB_StateType st,
+                                const unsigned char *buffer, uint32_t buflen)
 {
     TPM_RESULT ret = TPM_SUCCESS;
     TPM_RC rc = TPM_RC_SUCCESS;
@@ -609,6 +865,36 @@ TPM_RESULT TPM2_SetState(enum TPMLIB_StateType st,
     return ret;
 }
 
+static TPM_RESULT TPM2_SetProfile(const char *profile)
+{
+    char *copyProfile = NULL;
+    TPM_RC rc;
+
+    if (_rpc__Signal_IsPowerOn())
+        return TPM_INVALID_POSTINIT;
+
+    if (profile) {
+        /* test the profile */
+        rc = RuntimeProfileTest(&g_RuntimeProfile, profile, true);
+        if (rc != TPM_RC_SUCCESS)
+            return TPM_FAIL;
+
+        copyProfile = strdup(profile);
+        if (!copyProfile)
+            return TPM_SIZE;
+    }
+
+    free(g_profile);
+    g_profile = copyProfile;
+
+    return TPM_SUCCESS;
+}
+
+static TPM_BOOL TPM2_WasManufactured(void)
+{
+    return g_wasManufactured;
+}
+
 const struct tpm_interface TPM2Interface = {
     .MainInit = TPM2_MainInit,
     .Terminate = TPM2_Terminate,
@@ -626,4 +912,6 @@ const struct tpm_interface TPM2Interface = {
     .ValidateState = TPM2_ValidateState,
     .SetState = TPM2_SetState,
     .GetState = TPM2_GetState,
+    .SetProfile = TPM2_SetProfile,
+    .WasManufactured = TPM2_WasManufactured,
 };

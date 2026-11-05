@@ -77,8 +77,8 @@ The number of delegate entries.
 
 =item B<TPMPROP_TPM_SPACE_SAFETY_MARGIN>
 
-The space saftey margin used for the worst-case sizes of the savestate and
-volatile state blobs. This safety marging is not used for the size of the
+The space safety margin used for the worst-case sizes of the savestate and
+volatile state blobs. This safety margin is not used for the size of the
 permanent data blob.
 
 =item B<TPMPROP_TPM_MAX_NV_SPACE>
@@ -94,6 +94,10 @@ The maximum size of the savestate blob (includes the space safety margin).
 The maximum size of the volatile state blob (includes the space saferty
 margin).
 
+=item B<TPMPROP_TPM2_BUFFER_MAX> (since v0.11)
+
+The maximum sizes of the TPM2 command and result buffers.
+
 =back
 
 =head1 ERRORS
@@ -102,7 +106,7 @@ margin).
 
 =item B<TPM_SUCCESS>
 
-The function completed sucessfully.
+The function completed successfully.
 
 =item B<TPM_FAIL>
 

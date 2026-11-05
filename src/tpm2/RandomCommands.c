@@ -1,9 +1,9 @@
 /********************************************************************************/
 /*										*/
-/*			     				*/
+/*			    Random Number Generator 				*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: RandomCommands.c 809 2016-11-16 18:31:54Z kgoldman $			*/
+/*            $Id: RandomCommands.c 1671 2021-06-03 18:30:41Z kgoldman $	*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -55,13 +55,13 @@
 /*    arising in any way out of use or reliance upon this specification or any 	*/
 /*    information herein.							*/
 /*										*/
-/*  (c) Copyright IBM Corp. and others, 2016					*/
+/*  (c) Copyright IBM Corp. and others, 2016 - 2018				*/
 /*										*/
 /********************************************************************************/
 
 #include "Tpm.h"
 #include "GetRandom_fp.h"
-#ifdef TPM_CC_GetRandom  // Conditional expansion of this file
+#if CC_GetRandom  // Conditional expansion of this file
 TPM_RC
 TPM2_GetRandom(
 	       GetRandom_In    *in,            // IN: input parameter list
@@ -76,12 +76,12 @@ TPM2_GetRandom(
     else
 	out->randomBytes.t.size = in->bytesRequested;
     CryptRandomGenerate(out->randomBytes.t.size, out->randomBytes.t.buffer);
-    return TPM_RC_SUCCESS;
+   return TPM_RC_SUCCESS;
 }
 #endif // CC_GetRandom
 #include "Tpm.h"
 #include "StirRandom_fp.h"
-#ifdef TPM_CC_StirRandom  // Conditional expansion of this file
+#if CC_StirRandom  // Conditional expansion of this file
 TPM_RC
 TPM2_StirRandom(
 		StirRandom_In   *in             // IN: input parameter list

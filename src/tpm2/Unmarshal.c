@@ -1,53 +1,25 @@
-/********************************************************************************/
-/*										*/
-/*			     Parameter Unmarshaling				*/
-/*			     Written by Ken Goldman				*/
-/*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: Unmarshal.c 1047 2017-07-20 18:27:34Z kgoldman $		*/
-/*										*/
-/* (c) Copyright IBM Corporation 2015, 2016					*/
-/*										*/
-/* All rights reserved.								*/
-/* 										*/
-/* Redistribution and use in source and binary forms, with or without		*/
-/* modification, are permitted provided that the following conditions are	*/
-/* met:										*/
-/* 										*/
-/* Redistributions of source code must retain the above copyright notice,	*/
-/* this list of conditions and the following disclaimer.			*/
-/* 										*/
-/* Redistributions in binary form must reproduce the above copyright		*/
-/* notice, this list of conditions and the following disclaimer in the		*/
-/* documentation and/or other materials provided with the distribution.		*/
-/* 										*/
-/* Neither the names of the IBM Corporation nor the names of its		*/
-/* contributors may be used to endorse or promote products derived from		*/
-/* this software without specific prior written permission.			*/
-/* 										*/
-/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
-/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
-/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
-/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
-/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
-/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
-/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
-/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
-/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
-/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
-/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
-/********************************************************************************/
+// SPDX-License-Identifier: BSD-2-Clause
+
+// (c) Copyright IBM Corporation 2015 - 2024
+//
+// All rights reserved.
+//
+// Neither the names of the IBM Corporation nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
 
 /* rev 136 */
 
 #include <string.h>
 
-/* TSS needs TPM_TSS for TSS side structures */
 #include "Unmarshal_fp.h"
+#include "CryptEccMain_fp.h"	// libtpms added
+#include "RuntimeAlgorithm_fp.h"// libtpms added
 
 TPM_RC
 UINT8_Unmarshal(UINT8 *target, BYTE **buffer, INT32 *size)
 {
-    if ((UINT32)*size < sizeof(UINT8)) {
+    if (*size < 0 || (UINT32)*size < sizeof(UINT8)) {
 	return TPM_RC_INSUFFICIENT;
     }
     *target = (*buffer)[0];
@@ -65,7 +37,7 @@ INT8_Unmarshal(INT8 *target, BYTE **buffer, INT32 *size)
 TPM_RC
 UINT16_Unmarshal(UINT16 *target, BYTE **buffer, INT32 *size)
 {
-    if ((UINT32)*size < sizeof(UINT16)) {
+    if (*size < 0 || (UINT32)*size < sizeof(UINT16)) {
 	return TPM_RC_INSUFFICIENT;
     }
     *target = ((UINT16)((*buffer)[0]) << 8) |
@@ -78,7 +50,7 @@ UINT16_Unmarshal(UINT16 *target, BYTE **buffer, INT32 *size)
 TPM_RC
 UINT32_Unmarshal(UINT32 *target, BYTE **buffer, INT32 *size)
 {
-    if ((UINT32)*size < sizeof(UINT32)) {
+    if (*size < 0 || (UINT32)*size < sizeof(UINT32)) {
 	return TPM_RC_INSUFFICIENT;
     }
     *target = ((UINT32)((*buffer)[0]) << 24) |
@@ -91,16 +63,9 @@ UINT32_Unmarshal(UINT32 *target, BYTE **buffer, INT32 *size)
 }
 
 TPM_RC
-INT32_Unmarshal(INT32 *target, BYTE **buffer, INT32 *size)
-{
-    return UINT32_Unmarshal((UINT32 *)target, buffer, size);
-}
-
-
-TPM_RC
 UINT64_Unmarshal(UINT64 *target, BYTE **buffer, INT32 *size)
 {
-    if ((UINT32)*size < sizeof(UINT64)) {
+    if (*size < 0 || (UINT32)*size < sizeof(UINT64)) {
 	return TPM_RC_INSUFFICIENT;
     }
     *target = ((UINT64)((*buffer)[0]) << 56) |
@@ -121,7 +86,7 @@ Array_Unmarshal(BYTE *targetBuffer, UINT16 targetSize, BYTE **buffer, INT32 *siz
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
-    if (targetSize > *size) {
+    if (*size < 0 || targetSize > (UINT32)*size) {
 	rc = TPM_RC_INSUFFICIENT;
     }
     else {
@@ -143,6 +108,7 @@ TPM2B_Unmarshal(TPM2B *target, UINT16 targetSize, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->size > targetSize) {
 	    rc = TPM_RC_SIZE;
+	    target->size = 0; // libtpms added
 	}
     }
     if (rc == TPM_RC_SUCCESS) {
@@ -159,28 +125,32 @@ TPM_KEY_BITS_Unmarshal(TPM_KEY_BITS *target, BYTE **buffer, INT32 *size)
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT16_Unmarshal(target, buffer, size);  
+	rc = UINT16_Unmarshal(target, buffer, size);
     }
     return rc;
 }
 
 /* Table 7 - Definition of (UINT32) TPM_GENERATED Constants <O> */
 
+#if 0
 TPM_RC
 TPM_GENERATED_Unmarshal(TPM_GENERATED *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_GENERATED orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal(target, buffer, size);  
+	rc = UINT32_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	if (*target != TPM_GENERATED_VALUE) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
 }
+#endif
 
 /* Table 9 - Definition of (UINT16) TPM_ALG_ID Constants <IN/OUT, S> */
 
@@ -190,18 +160,19 @@ TPM_ALG_ID_Unmarshal(TPM_ALG_ID *target, BYTE **buffer, INT32 *size)
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT16_Unmarshal(target, buffer, size);  
+	rc = UINT16_Unmarshal(target, buffer, size);
     }
     return rc;
 }
 
 /* Table 10 - Definition of (UINT16) {ECC} TPM_ECC_CURVE Constants <IN/OUT, S> */
 
-#ifdef TPM_ALG_ECC
+#if ALG_ECC
 TPM_RC
 TPM_ECC_CURVE_Unmarshal(TPM_ECC_CURVE *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_ECC_CURVE orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT16_Unmarshal(target, buffer, size);
@@ -209,19 +180,65 @@ TPM_ECC_CURVE_Unmarshal(TPM_ECC_CURVE *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
 	  case TPM_ECC_NONE:
+#  if ECC_NIST_P192
 	  case TPM_ECC_NIST_P192:
-	  case TPM_ECC_NIST_P224:
-	  case TPM_ECC_NIST_P256:
-	  case TPM_ECC_NIST_P384:
+#  endif  // ECC_NIST_P192
+#  if ECC_NIST_P224
+ 	  case TPM_ECC_NIST_P224:
+#  endif  // ECC_NIST_P224
+#  if ECC_NIST_P256
+ 	  case TPM_ECC_NIST_P256:
+#  endif  // ECC_NIST_P256
+#  if ECC_NIST_P384
+ 	  case TPM_ECC_NIST_P384:
+#  endif  // ECC_NIST_P384
+#  if ECC_NIST_P521
 	  case TPM_ECC_NIST_P521:
+#  endif  // ECC_NIST_P521
+#  if ECC_BN_P256
 	  case TPM_ECC_BN_P256:
-	  case TPM_ECC_BN_P638:
+#  endif  // ECC_BN_P256
+#  if ECC_BN_P638
+ 	  case TPM_ECC_BN_P638:
+#  endif  // ECC_BN_P638
+#  if ECC_SM2_P256
 	  case TPM_ECC_SM2_P256:
+#  endif  // ECC_SM2_P256
+#  if ECC_BP_P256_R1
+	  case TPM_ECC_BP_P256_R1:
+#  endif  // ECC_BP_P256_R1
+#  if ECC_BP_P384_R1
+	  case TPM_ECC_BP_P384_R1:
+#  endif  // ECC_BP_P384_R1
+#  if ECC_BP_P512_R1
+	  case TPM_ECC_BP_P512_R1:
+#  endif  // ECC_BP_P512_R1
+#  if ECC_CURVE_25519
+	  case TPM_ECC_CURVE_25519:
+#  endif  // ECC_CURVE_25519
+#  if ECC_CURVE_448
+	  case TPM_ECC_CURVE_448:
+#  endif  // ECC_CURVE_448
+	    if (*target != TPM_ECC_NONE &&		// libtpms added begin
+		!CryptEccIsCurveRuntimeUsable(*target)) {
+	        rc = TPM_RC_CURVE;
+	    }
+	    if (rc == TPM_RC_SUCCESS && *target != TPM_ECC_NONE &&
+	        !RuntimeAlgorithmEccKeySizeCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,
+						        TPM_ALG_ECC,
+							CryptEccGetKeySizeForCurve(*target),
+							*target,
+						        g_RuntimeProfile.stateFormatLevel)) {
+		rc = TPM_RC_CURVE;
+	    }						// libtpms added end
 	    break;
 	  default:
 	    rc = TPM_RC_CURVE;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 #endif
@@ -234,20 +251,7 @@ TPM_CC_Unmarshal(TPM_RC *target, BYTE **buffer, INT32 *size)
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal(target, buffer, size);  
-    }
-    return rc;
-}
-
-/* Table 17 - Definition of (UINT32) TPM_RC Constants (Actions) <OUT> */
-
-TPM_RC
-TPM_RC_Unmarshal(TPM_RC *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-
-    if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal(target, buffer, size);  
+	rc = UINT32_Unmarshal(target, buffer, size);
     }
     return rc;
 }
@@ -258,9 +262,10 @@ TPM_RC
 TPM_CLOCK_ADJUST_Unmarshal(TPM_CLOCK_ADJUST *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_CLOCK_ADJUST orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = INT8_Unmarshal(target, buffer, size);  
+	rc = INT8_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -274,6 +279,7 @@ TPM_CLOCK_ADJUST_Unmarshal(TPM_CLOCK_ADJUST *target, BYTE **buffer, INT32 *size)
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -285,9 +291,10 @@ TPM_RC
 TPM_EO_Unmarshal(TPM_EO *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_EO orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT16_Unmarshal(target, buffer, size);  
+	rc = UINT16_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -306,6 +313,7 @@ TPM_EO_Unmarshal(TPM_EO *target, BYTE **buffer, INT32 *size)
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -317,9 +325,10 @@ TPM_RC
 TPM_ST_Unmarshal(TPM_ST *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_ST orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT16_Unmarshal(target, buffer, size);  
+	rc = UINT16_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -342,6 +351,7 @@ TPM_ST_Unmarshal(TPM_ST *target, BYTE **buffer, INT32 *size)
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -353,9 +363,10 @@ TPM_RC
 TPM_SU_Unmarshal(TPM_SU *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_SU orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT16_Unmarshal(target, buffer, size);  
+	rc = UINT16_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -364,6 +375,7 @@ TPM_SU_Unmarshal(TPM_SU *target, BYTE **buffer, INT32 *size)
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -375,9 +387,10 @@ TPM_RC
 TPM_SE_Unmarshal(TPM_SE *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_SE orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT8_Unmarshal(target, buffer, size);  
+	rc = UINT8_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -387,6 +400,7 @@ TPM_SE_Unmarshal(TPM_SE *target, BYTE **buffer, INT32 *size)
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -398,9 +412,10 @@ TPM_RC
 TPM_CAP_Unmarshal(TPM_CAP *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_CAP orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal(target, buffer, size);  
+	rc = UINT32_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -414,10 +429,16 @@ TPM_CAP_Unmarshal(TPM_CAP *target, BYTE **buffer, INT32 *size)
 	  case TPM_CAP_PCR_PROPERTIES:
 	  case TPM_CAP_ECC_CURVES:
 	  case TPM_CAP_AUTH_POLICIES:
+	  case TPM_CAP_ACT:
+#  if SEC_CHANNEL_SUPPORT
+          case TPM_CAP_PUB_KEYS:
+          case TPM_CAP_SPDM_SESSION_INFO:
+#  endif  // SEC_CHANNEL_SUPPORT
 	  case TPM_CAP_VENDOR_PROPERTY:
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -431,7 +452,7 @@ TPM_PT_Unmarshal(TPM_HANDLE *target, BYTE **buffer, INT32 *size)
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal(target, buffer, size);  
+	rc = UINT32_Unmarshal(target, buffer, size);
     }
     return rc;
 }
@@ -444,7 +465,7 @@ TPM_PT_PCR_Unmarshal(TPM_PT_PCR *target, BYTE **buffer, INT32 *size)
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal(target, buffer, size);  
+	rc = UINT32_Unmarshal(target, buffer, size);
     }
     return rc;
 }
@@ -457,7 +478,7 @@ TPM_HANDLE_Unmarshal(TPM_HANDLE *target, BYTE **buffer, INT32 *size)
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal(target, buffer, size);  
+	rc = UINT32_Unmarshal(target, buffer, size);
     }
     return rc;
 }
@@ -468,13 +489,15 @@ TPM_RC
 TPMA_ALGORITHM_Unmarshal(TPMA_ALGORITHM *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMA_ALGORITHM orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal((UINT32 *)target, buffer, size);  
+	rc = UINT32_Unmarshal((UINT32 *)target, buffer, size); /* libtpms changed */
     }
     if (rc == TPM_RC_SUCCESS) {
 	if (*target & TPMA_ALGORITHM_reserved) {
 	    rc = TPM_RC_RESERVED_BITS;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -486,13 +509,15 @@ TPM_RC
 TPMA_OBJECT_Unmarshal(TPMA_OBJECT *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMA_OBJECT orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal((UINT32 *)target, buffer, size);  
+	rc = UINT32_Unmarshal((UINT32 *)target, buffer, size); /* libtpms changed */
     }
     if (rc == TPM_RC_SUCCESS) {
 	if (*target & TPMA_OBJECT_reserved) {
 	    rc = TPM_RC_RESERVED_BITS;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -504,13 +529,15 @@ TPM_RC
 TPMA_SESSION_Unmarshal(TPMA_SESSION *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMA_SESSION orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT8_Unmarshal((UINT8 *)target, buffer, size);  
+	rc = UINT8_Unmarshal((UINT8 *)target, buffer, size);  /* libtpms changed */
     }
     if (rc == TPM_RC_SUCCESS) {
 	if (*target & TPMA_SESSION_reserved) {
 	    rc = TPM_RC_RESERVED_BITS;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -524,7 +551,7 @@ TPMA_LOCALITY_Unmarshal(TPMA_LOCALITY *target, BYTE **buffer, INT32 *size)
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT8_Unmarshal((UINT8 *)target, buffer, size);  
+	rc = UINT8_Unmarshal((UINT8 *)target, buffer, size);  /* libtpms changed */
     }
     return rc;
 }
@@ -535,13 +562,15 @@ TPM_RC
 TPMA_CC_Unmarshal(TPMA_CC *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMA_CC orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal((UINT32 *)target, buffer, size);  
+	rc = UINT32_Unmarshal((UINT32 *)target, buffer, size); /* libtpms changed */
     }
     if (rc == TPM_RC_SUCCESS) {
 	if (*target & TPMA_CC_reserved) {
 	    rc = TPM_RC_RESERVED_BITS;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -553,9 +582,10 @@ TPM_RC
 TPMI_YES_NO_Unmarshal(TPMI_YES_NO *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_YES_NO orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT8_Unmarshal(target, buffer, size);  
+	rc = UINT8_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -564,6 +594,7 @@ TPMI_YES_NO_Unmarshal(TPMI_YES_NO *target, BYTE **buffer, INT32 *size)
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -575,9 +606,10 @@ TPM_RC
 TPMI_DH_OBJECT_Unmarshal(TPMI_DH_OBJECT *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+    TPMI_DH_OBJECT orig_target = *target; // libtpms added
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotTransient = (*target < TRANSIENT_FIRST) || (*target > TRANSIENT_LAST);
@@ -587,6 +619,7 @@ TPMI_DH_OBJECT_Unmarshal(TPMI_DH_OBJECT *target, BYTE **buffer, INT32 *size, BOO
 	    isNotPersistent &&
 	    isNotLegalNull) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -598,9 +631,10 @@ TPM_RC
 TPMI_DH_PARENT_Unmarshal(TPMI_DH_PARENT *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+    TPMI_DH_PARENT orig_target = *target; // libtpms added
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotTransient = (*target < TRANSIENT_FIRST) || (*target > TRANSIENT_LAST);
@@ -613,9 +647,10 @@ TPMI_DH_PARENT_Unmarshal(TPMI_DH_PARENT *target, BYTE **buffer, INT32 *size, BOO
 	    isNotPersistent &&
 	    isNotOwner &&
 	    isNotPlatform &&
-	    isNotEndorsement && 
+	    isNotEndorsement &&
 	    isNotLegalNull) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -627,14 +662,16 @@ TPM_RC
 TPMI_DH_PERSISTENT_Unmarshal(TPMI_DH_PERSISTENT *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_DH_PERSISTENT orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotPersistent = (*target < PERSISTENT_FIRST) || (*target > PERSISTENT_LAST);
 	if (isNotPersistent) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -646,9 +683,10 @@ TPM_RC
 TPMI_DH_ENTITY_Unmarshal(TPMI_DH_ENTITY *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_DH_ENTITY orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotOwner = *target != TPM_RH_OWNER;
@@ -672,6 +710,7 @@ TPMI_DH_ENTITY_Unmarshal(TPMI_DH_ENTITY *target, BYTE **buffer, INT32 *size, BOO
 	    isNotAuth &&
 	    isNotLegalNull) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -683,9 +722,10 @@ TPM_RC
 TPMI_DH_PCR_Unmarshal(TPMI_DH_PCR *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_DH_PCR orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotPcr = (*target > PCR_LAST);
@@ -693,6 +733,7 @@ TPMI_DH_PCR_Unmarshal(TPMI_DH_PCR *target, BYTE **buffer, INT32 *size, BOOL allo
 	if (isNotPcr &&
 	    isNotLegalNull) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -704,9 +745,10 @@ TPM_RC
 TPMI_SH_AUTH_SESSION_Unmarshal(TPMI_SH_AUTH_SESSION *target, BYTE **buffer, INT32 *size, BOOL allowPwd)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_SH_AUTH_SESSION orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotHmacSession = (*target < HMAC_SESSION_FIRST ) || (*target > HMAC_SESSION_LAST);
@@ -716,6 +758,7 @@ TPMI_SH_AUTH_SESSION_Unmarshal(TPMI_SH_AUTH_SESSION *target, BYTE **buffer, INT3
 	    isNotPolicySession &&
 	    isNotLegalPwd) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -724,18 +767,19 @@ TPMI_SH_AUTH_SESSION_Unmarshal(TPMI_SH_AUTH_SESSION *target, BYTE **buffer, INT3
 /* Table 45 - Definition of (TPM_HANDLE) TPMI_SH_HMAC Type <IN/OUT> */
 
 TPM_RC
-TPMI_SH_HMAC_Unmarshal(TPMI_SH_HMAC *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_SH_HMAC_Unmarshal(TPMI_SH_HMAC *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
-    
+    TPMI_SH_HMAC orig_target = *target; // libtpms added
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotHmacSession = (*target < HMAC_SESSION_FIRST ) || (*target > HMAC_SESSION_LAST);
 	if (isNotHmacSession) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -744,18 +788,19 @@ TPMI_SH_HMAC_Unmarshal(TPMI_SH_HMAC *target, BYTE **buffer, INT32 *size, BOOL al
 /* Table 46 - Definition of (TPM_HANDLE) TPMI_SH_POLICY Type <IN/OUT> */
 
 TPM_RC
-TPMI_SH_POLICY_Unmarshal(TPMI_SH_POLICY *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_SH_POLICY_Unmarshal(TPMI_SH_POLICY *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
-    
+    TPMI_SH_POLICY orig_target = *target; // libtpms added
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotPolicySession = (*target < POLICY_SESSION_FIRST) || (*target > POLICY_SESSION_LAST);
 	if (isNotPolicySession) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -764,13 +809,13 @@ TPMI_SH_POLICY_Unmarshal(TPMI_SH_POLICY *target, BYTE **buffer, INT32 *size, BOO
 /* Table 47 - Definition of (TPM_HANDLE) TPMI_DH_CONTEXT Type  */
 
 TPM_RC
-TPMI_DH_CONTEXT_Unmarshal(TPMI_DH_CONTEXT *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_DH_CONTEXT_Unmarshal(TPMI_DH_CONTEXT *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
+    TPMI_DH_CONTEXT orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotHmacSession = (*target < HMAC_SESSION_FIRST ) || (*target > HMAC_SESSION_LAST);
@@ -780,6 +825,37 @@ TPMI_DH_CONTEXT_Unmarshal(TPMI_DH_CONTEXT *target, BYTE **buffer, INT32 *size, B
 	    isNotPolicySession &&
 	    isNotTransient) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
+	}
+    }
+    return rc;
+}
+
+/* Table 49 - Definition of (TPM_HANDLE) TPMI_DH_SAVED Type */
+
+TPM_RC
+TPMI_DH_SAVED_Unmarshal(TPMI_DH_SAVED *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_DH_SAVED orig_target = *target; // libtpms added
+    allowNull = allowNull;
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	BOOL isNotHmacSession = (*target < HMAC_SESSION_FIRST ) || (*target > HMAC_SESSION_LAST);
+	BOOL isNotPolicySession = (*target < POLICY_SESSION_FIRST) || (*target > POLICY_SESSION_LAST);
+	BOOL isNotTransientObject = (*target != 0x80000000);
+	BOOL isNotSequenceObject = (*target != 0x80000001);
+	BOOL isNotTransientStClear = (*target != 0x80000002);
+	if (isNotHmacSession &&
+	    isNotPolicySession &&
+	    isNotTransientObject &&
+	    isNotSequenceObject &&
+	    isNotTransientStClear) {
+	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -791,9 +867,10 @@ TPM_RC
 TPMI_RH_HIERARCHY_Unmarshal(TPMI_RH_HIERARCHY *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RH_HIERARCHY orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -805,8 +882,10 @@ TPMI_RH_HIERARCHY_Unmarshal(TPMI_RH_HIERARCHY *target, BYTE **buffer, INT32 *siz
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -818,9 +897,10 @@ TPM_RC
 TPMI_RH_ENABLES_Unmarshal(TPMI_RH_ENABLES *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RH_ENABLES orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -833,8 +913,10 @@ TPMI_RH_ENABLES_Unmarshal(TPMI_RH_ENABLES *target, BYTE **buffer, INT32 *size, B
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -843,13 +925,13 @@ TPMI_RH_ENABLES_Unmarshal(TPMI_RH_ENABLES *target, BYTE **buffer, INT32 *size, B
 /* Table 50 - Definition of (TPM_HANDLE) TPMI_RH_HIERARCHY_AUTH Type <IN> */
 
 TPM_RC
-TPMI_RH_HIERARCHY_AUTH_Unmarshal(TPMI_RH_HIERARCHY_AUTH *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_RH_HIERARCHY_AUTH_Unmarshal(TPMI_RH_HIERARCHY_AUTH *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
-    
+    TPMI_RH_HIERARCHY_AUTH orig_target = *target; // libtpms added
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -860,6 +942,38 @@ TPMI_RH_HIERARCHY_AUTH_Unmarshal(TPMI_RH_HIERARCHY_AUTH *target, BYTE **buffer, 
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
+	}
+    }
+    return rc;
+}
+
+/* Table 50 - Definition of (TPM_HANDLE) TPMI_RH_HIERARCHY_POLICY Type <IN> */
+
+TPM_RC
+TPMI_RH_HIERARCHY_POLICY_Unmarshal(TPMI_RH_HIERARCHY_POLICY *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RH_HIERARCHY_POLICY orig_target = *target; // libtpms added
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	switch (*target) {
+	  case TPM_RH_OWNER:
+	  case TPM_RH_PLATFORM:
+	  case TPM_RH_ENDORSEMENT:
+	  case TPM_RH_LOCKOUT:
+	    break;
+	  default:
+	      {
+		  BOOL isNotHP =  (*target < TPM_RH_ACT_0) || (*target > TPM_RH_ACT_F);
+		  if (isNotHP) {
+		      rc = TPM_RC_VALUE;
+		      *target = orig_target; // libtpms added
+		  }
+	      }
 	}
     }
     return rc;
@@ -868,13 +982,13 @@ TPMI_RH_HIERARCHY_AUTH_Unmarshal(TPMI_RH_HIERARCHY_AUTH *target, BYTE **buffer, 
 /* Table 51 - Definition of (TPM_HANDLE) TPMI_RH_PLATFORM Type <IN> */
 
 TPM_RC
-TPMI_RH_PLATFORM_Unmarshal(TPMI_RH_PLATFORM *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_RH_PLATFORM_Unmarshal(TPMI_RH_PLATFORM *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
+    TPMI_RH_PLATFORM orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -882,6 +996,7 @@ TPMI_RH_PLATFORM_Unmarshal(TPMI_RH_PLATFORM *target, BYTE **buffer, INT32 *size,
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -893,9 +1008,10 @@ TPM_RC
 TPMI_RH_ENDORSEMENT_Unmarshal(TPMI_RH_ENDORSEMENT *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RH_ENDORSEMENT orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -905,8 +1021,10 @@ TPMI_RH_ENDORSEMENT_Unmarshal(TPMI_RH_ENDORSEMENT *target, BYTE **buffer, INT32 
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -915,13 +1033,13 @@ TPMI_RH_ENDORSEMENT_Unmarshal(TPMI_RH_ENDORSEMENT *target, BYTE **buffer, INT32 
 /* Table 54 - Definition of (TPM_HANDLE) TPMI_RH_PROVISION Type <IN> */
 
 TPM_RC
-TPMI_RH_PROVISION_Unmarshal(TPMI_RH_PROVISION *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_RH_PROVISION_Unmarshal(TPMI_RH_PROVISION *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
+    TPMI_RH_PROVISION orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -930,6 +1048,7 @@ TPMI_RH_PROVISION_Unmarshal(TPMI_RH_PROVISION *target, BYTE **buffer, INT32 *siz
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -938,13 +1057,13 @@ TPMI_RH_PROVISION_Unmarshal(TPMI_RH_PROVISION *target, BYTE **buffer, INT32 *siz
 /* Table 55 - Definition of (TPM_HANDLE) TPMI_RH_CLEAR Type <IN> */
 
 TPM_RC
-TPMI_RH_CLEAR_Unmarshal(TPMI_RH_CLEAR *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_RH_CLEAR_Unmarshal(TPMI_RH_CLEAR *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
+    TPMI_RH_CLEAR orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -953,6 +1072,7 @@ TPMI_RH_CLEAR_Unmarshal(TPMI_RH_CLEAR *target, BYTE **buffer, INT32 *size, BOOL 
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -961,13 +1081,13 @@ TPMI_RH_CLEAR_Unmarshal(TPMI_RH_CLEAR *target, BYTE **buffer, INT32 *size, BOOL 
 /* Table 56 - Definition of (TPM_HANDLE) TPMI_RH_NV_AUTH Type <IN> */
 
 TPM_RC
-TPMI_RH_NV_AUTH_Unmarshal(TPMI_RH_NV_AUTH *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_RH_NV_AUTH_Unmarshal(TPMI_RH_NV_AUTH *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
-    
+    TPMI_RH_NV_AUTH orig_target = *target; // libtpms added
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -979,6 +1099,7 @@ TPMI_RH_NV_AUTH_Unmarshal(TPMI_RH_NV_AUTH *target, BYTE **buffer, INT32 *size, B
 		  BOOL isNotNv = (*target < NV_INDEX_FIRST) || (*target > NV_INDEX_LAST);
 		  if (isNotNv) {
 		      rc = TPM_RC_VALUE;
+		      *target = orig_target; // libtpms added
 		  }
 	      }
 	}
@@ -986,16 +1107,16 @@ TPMI_RH_NV_AUTH_Unmarshal(TPMI_RH_NV_AUTH *target, BYTE **buffer, INT32 *size, B
     return rc;
 }
 
-/* Table 57 - Definition of (TPM_HANDLE) TPMI_RH_LOCKOUT Type <IN> */
+/* Table 65 - Definition of (TPM_HANDLE) TPMI_RH_LOCKOUT Type <IN> */
 
 TPM_RC
-TPMI_RH_LOCKOUT_Unmarshal(TPMI_RH_LOCKOUT *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_RH_LOCKOUT_Unmarshal(TPMI_RH_LOCKOUT *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
+    TPMI_RH_LOCKOUT orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -1003,26 +1124,159 @@ TPMI_RH_LOCKOUT_Unmarshal(TPMI_RH_LOCKOUT *target, BYTE **buffer, INT32 *size, B
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
 }
 
-/* Table 58 - Definition of (TPM_HANDLE) TPMI_RH_NV_INDEX Type <IN/OUT> */
+/* Table 66 - Definition of (TPM_HANDLE) TPMI_RH_NV_INDEX Type <IN/OUT> */
 
 TPM_RC
-TPMI_RH_NV_INDEX_Unmarshal(TPMI_RH_NV_INDEX *target, BYTE **buffer, INT32 *size, BOOL allowNull)
+TPMI_RH_NV_INDEX_Unmarshal(TPMI_RH_NV_INDEX *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    allowNull = allowNull;
+    TPMI_RH_NV_INDEX orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_HANDLE_Unmarshal(target, buffer, size);  
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	BOOL isNotNv = (*target < NV_INDEX_FIRST) || (*target > NV_INDEX_LAST);
+#if EXTERNAL_NV						// libtpms added
+	BOOL isNotExternalNV = (*target < EXTERNAL_NV_FIRST) || (*target > EXTERNAL_NV_LAST);
+#else							// libtpms added begin
+	BOOL isNotExternalNV = TRUE;
+#endif
+#if PERMANENT_NV					// libtpms added end
+	BOOL isNotPermamentNV = (*target < PERMANENT_NV_FIRST) || (*target > PERMANENT_NV_LAST);
+#else							// libtpms added begin
+	BOOL isNotPermamentNV = TRUE;
+#endif							// libtpms added end
+
+	if (isNotNv &&
+	    isNotExternalNV &&
+	    isNotPermamentNV) {
+	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
+	}
+    }
+    return rc;
+}
+
+/* Table 67 - Definition of (TPM_HANDLE) TPMI_RH_NV_DEFINED_INDEX Type <IN> */
+TPM_RC
+TPMI_RH_NV_DEFINED_INDEX_Unmarshal(TPMI_RH_NV_DEFINED_INDEX *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RH_NV_DEFINED_INDEX orig_target = *target;	// libtpms added
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	BOOL isNotNv = (*target < NV_INDEX_FIRST) || (*target > NV_INDEX_LAST);
+#if EXTERNAL_NV						// libtpms added
+	BOOL isNotExternalNV = (*target < EXTERNAL_NV_FIRST) || (*target > EXTERNAL_NV_LAST);
+#else							// libtpms added begin
+	BOOL isNotExternalNV = TRUE;
+#endif							// libtpms added end
+
+	if (isNotNv &&
+	    isNotExternalNV) {
+	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
+	}
+    }
+    return rc;
+}
+
+#if 0
+/* Table 68 - Definition of (TPM_HANDLE) TPMI_RH_NV_LEGACY_INDEX Type <IN/OUT> */
+TPM_RC
+TPMI_RH_NV_LEGACY_INDEX_Unmarshal(TPMI_RH_NV_LEGACY_INDEX *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RH_NV_LEGACY_INDEX orig_target = *target; // libtpms added
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	BOOL isNotNv = (*target < NV_INDEX_FIRST) || (*target > NV_INDEX_LAST);
+
 	if (isNotNv) {
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
+	}
+    }
+    return rc;
+}
+#endif						// libtpms added
+
+/* Table 69 - Definition of (TPM_HANDLE) TPMI_RH_NV_EXP_INDEX Type <IN/OUT> */
+
+TPM_RC
+TPMI_RH_NV_EXP_INDEX_Unmarshal(TPMI_RH_NV_EXP_INDEX *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RH_NV_EXP_INDEX orig_target = *target; // libtpms added
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+#if EXTERNAL_NV					// libtpms added
+	BOOL isNotExternalNV = (*target < EXTERNAL_NV_FIRST) || (*target > EXTERNAL_NV_LAST);
+#else						// libtpms added begin
+	BOOL isNotExternalNV = TRUE;
+#endif						// libtpms added end
+
+	if (isNotExternalNV) {
+	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
+	}
+    }
+    return rc;
+}
+
+/* Table 64 - Definition of (TPM_HANDLE) TPMI_RH_AC Type <IN> */
+
+TPM_RC
+TPMI_RH_AC_Unmarshal(TPMI_RH_AC *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RH_AC orig_target = *target; // libtpms added
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	BOOL isNotAC = (*target < AC_FIRST) || (*target > AC_LAST);
+	if (isNotAC) {
+	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
+	}
+    }
+    return rc;
+}
+
+/* Table 65 - Definition of (TPM_HANDLE) TPMI_RH_ACT Type <IN> */
+
+TPM_RC
+TPMI_RH_ACT_Unmarshal( TPMI_RH_ACT *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RH_ACT orig_target = *target; // libtpms added
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_HANDLE_Unmarshal(target, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	BOOL isNotACT = (*target < TPM_RH_ACT_0) || (*target > TPM_RH_ACT_F);
+	if (isNotACT) {
+	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -1034,36 +1288,45 @@ TPM_RC
 TPMI_ALG_HASH_Unmarshal(TPMI_ALG_HASH *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_HASH orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_SHA1
+#if ALG_SHA1
 	  case TPM_ALG_SHA1:
 #endif
-#ifdef TPM_ALG_SHA256	
+#if ALG_SHA256
 	  case TPM_ALG_SHA256:
 #endif
-#ifdef TPM_ALG_SHA384
+#if ALG_SHA384
 	  case 	TPM_ALG_SHA384:
 #endif
-#ifdef TPM_ALG_SHA512
+#if ALG_SHA512
 	  case 	TPM_ALG_SHA512:
 #endif
-#ifdef TPM_ALG_SM3_256
+#if ALG_SM3_256
 	  case TPM_ALG_SM3_256:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+					      *target)) {
+		rc = TPM_RC_HASH;
+	    }										// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_HASH;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
@@ -1073,33 +1336,45 @@ TPM_RC
 TPMI_ALG_SYM_Unmarshal(TPMI_ALG_SYM *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_SYM orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_AES
+#if ALG_AES
 	  case TPM_ALG_AES:
 #endif
-#ifdef TPM_ALG_SM4
-	  case TPM_ALG_SM4:		
+#if ALG_SM4
+	  case TPM_ALG_SM4:
 #endif
-#ifdef TPM_ALG_CAMELLIA
-	  case TPM_ALG_CAMELLIA:	
+#if ALG_CAMELLIA
+	  case TPM_ALG_CAMELLIA:
 #endif
-#ifdef TPM_ALG_XOR
-	  case TPM_ALG_XOR:		
+#if ALG_TDES		// libtpms added begin
+	  case TPM_ALG_TDES:
+#endif			// libtpms added end
+#if ALG_XOR
+	  case TPM_ALG_XOR:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+					      *target)) {
+		rc = TPM_RC_SYMMETRIC;
+	    }										// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_SYMMETRIC;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
@@ -1109,30 +1384,42 @@ TPM_RC
 TPMI_ALG_SYM_OBJECT_Unmarshal(TPMI_ALG_SYM_OBJECT *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_SYM_OBJECT orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_AES
+#if ALG_AES
 	  case TPM_ALG_AES:
 #endif
-#ifdef TPM_ALG_SM4
-	  case TPM_ALG_SM4:		
+#if ALG_SM4
+	  case TPM_ALG_SM4:
 #endif
-#ifdef TPM_ALG_CAMELLIA
-	  case TPM_ALG_CAMELLIA:	
+#if ALG_CAMELLIA
+	  case TPM_ALG_CAMELLIA:
 #endif
+#if ALG_TDES		// libtpms added begin
+	  case TPM_ALG_TDES:
+#endif			// iibtpms added end
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+					      *target)) {
+		rc = TPM_RC_SYMMETRIC;
+	    }										// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_SYMMETRIC;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
@@ -1142,39 +1429,48 @@ TPM_RC
 TPMI_ALG_SYM_MODE_Unmarshal(TPMI_ALG_SYM_MODE *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_SYM_MODE orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_CTR	
+#if ALG_CTR
 	  case TPM_ALG_CTR:
 #endif
-#ifdef TPM_ALG_OFB	
+#if ALG_OFB
 	  case TPM_ALG_OFB:
 #endif
-#ifdef TPM_ALG_CBC
+#if ALG_CBC
 	  case TPM_ALG_CBC:
 #endif
-#ifdef TPM_ALG_CFB	
+#if ALG_CFB
 	  case TPM_ALG_CFB:
 #endif
-#ifdef TPM_ALG_ECB	
+#if ALG_ECB
 	  case TPM_ALG_ECB:
 #endif
-#ifdef TPM_ALG_CMAC
+#if ALG_CMAC
 	  case TPM_ALG_CMAC:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+					      *target)) {
+		rc = TPM_RC_MODE;
+	    }										// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_MODE;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
@@ -1184,78 +1480,90 @@ TPM_RC
 TPMI_ALG_KDF_Unmarshal(TPMI_ALG_KDF *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_KDF orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_MGF1
+#if ALG_MGF1
 	  case TPM_ALG_MGF1:
 #endif
-#ifdef TPM_ALG_KDF1_SP800_56A
-	  case TPM_ALG_KDF1_SP800_56A:	
+#if ALG_KDF1_SP800_56A
+	  case TPM_ALG_KDF1_SP800_56A:
 #endif
-#ifdef TPM_ALG_KDF2
-	  case TPM_ALG_KDF2:			
+#if ALG_KDF2
+	  case TPM_ALG_KDF2:
 #endif
-#ifdef TPM_ALG_KDF1_SP800_108
-	  case TPM_ALG_KDF1_SP800_108:	
+#if ALG_KDF1_SP800_108
+	  case TPM_ALG_KDF1_SP800_108:
 #endif
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_KDF;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
 }
-    
+
 /* Table 65 - Definition of (TPM_ALG_ID) TPMI_ALG_SIG_SCHEME Type */
 
 TPM_RC
 TPMI_ALG_SIG_SCHEME_Unmarshal(TPMI_ALG_SIG_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_SIG_SCHEME orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_HMAC		
+#if ALG_HMAC
 	  case TPM_ALG_HMAC:
 #endif
-#ifdef TPM_ALG_RSASSA	
+#if ALG_RSASSA
 	  case TPM_ALG_RSASSA:
 #endif
-#ifdef TPM_ALG_RSAPSS	
+#if ALG_RSAPSS
 	  case TPM_ALG_RSAPSS:
 #endif
-#ifdef TPM_ALG_ECDSA		
+#if ALG_ECDSA
 	  case TPM_ALG_ECDSA:
 #endif
-#ifdef TPM_ALG_ECDAA		
+#if ALG_ECDAA
 	  case TPM_ALG_ECDAA:
 #endif
-#ifdef TPM_ALG_SM2		
+#if ALG_SM2
 	  case TPM_ALG_SM2:
 #endif
-#ifdef TPM_ALG_ECSCHNORR	
+#if ALG_ECSCHNORR
 	  case TPM_ALG_ECSCHNORR:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+					      *target)) {
+		rc = TPM_RC_SCHEME;
+	    }										// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_SCHEME;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
@@ -1265,30 +1573,39 @@ TPM_RC
 TPMI_ECC_KEY_EXCHANGE_Unmarshal(TPMI_ECC_KEY_EXCHANGE *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ECC_KEY_EXCHANGE orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_ECDH
+#if ALG_ECDH
 	  case TPM_ALG_ECDH:
 #endif
-#ifdef TPM_ALG_ECMQV
+#if ALG_ECMQV
 	  case TPM_ALG_ECMQV:
 #endif
-#ifdef TPM_ALG_SM2
+#if ALG_SM2
 	  case TPM_ALG_SM2:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+					      *target)) {
+		rc = TPM_RC_SCHEME;
+	    }										// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_SCHEME;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
@@ -1299,9 +1616,10 @@ TPM_RC
 TPMI_ST_COMMAND_TAG_Unmarshal(TPMI_ST_COMMAND_TAG *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ST_COMMAND_TAG orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ST_Unmarshal(target, buffer, size);  
+	rc = TPM_ST_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
@@ -1310,6 +1628,7 @@ TPMI_ST_COMMAND_TAG_Unmarshal(TPMI_ST_COMMAND_TAG *target, BYTE **buffer, INT32 
 	    break;
 	  default:
 	    rc = TPM_RC_BAD_TAG;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -1321,78 +1640,96 @@ TPM_RC
 TPMI_ALG_MAC_SCHEME_Unmarshal(TPMI_ALG_MAC_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_MAC_SCHEME orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_SHA1
+#if ALG_SHA1
 	  case TPM_ALG_SHA1:
 #endif
-#ifdef TPM_ALG_SHA256	
+#if ALG_SHA256
 	  case TPM_ALG_SHA256:
 #endif
-#ifdef TPM_ALG_SHA384
+#if ALG_SHA384
 	  case 	TPM_ALG_SHA384:
 #endif
-#ifdef TPM_ALG_SHA512
+#if ALG_SHA512
 	  case 	TPM_ALG_SHA512:
 #endif
-#ifdef TPM_ALG_SM3_256
+#if ALG_SM3_256
 	  case TPM_ALG_SM3_256:
 #endif
-#ifdef TPM_ALG_CMAC
+#if ALG_CMAC
 	  case TPM_ALG_CMAC:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+					      *target)) {
+		rc = TPM_RC_SYMMETRIC;
+	    }										// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_SYMMETRIC;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
-    
+
 /* Table 70 TPMI_ALG_CIPHER_MODE */
 
 TPM_RC
 TPMI_ALG_CIPHER_MODE_Unmarshal(TPMI_ALG_CIPHER_MODE*target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_CIPHER_MODE orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_CTR	
+#if ALG_CTR
 	  case TPM_ALG_CTR:
 #endif
-#ifdef TPM_ALG_OFB	
+#if ALG_OFB
 	  case TPM_ALG_OFB:
 #endif
-#ifdef TPM_ALG_CBC
+#if ALG_CBC
 	  case TPM_ALG_CBC:
 #endif
-#ifdef TPM_ALG_CFB	
+#if ALG_CFB
 	  case TPM_ALG_CFB:
 #endif
-#ifdef TPM_ALG_ECB	
+#if ALG_ECB
 	  case TPM_ALG_ECB:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+					      *target)) {
+		rc = TPM_RC_MODE;
+	    }										// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_MODE;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
@@ -1415,28 +1752,34 @@ TPMU_HA_Unmarshal(TPMU_HA *target, BYTE **buffer, INT32 *size, UINT32 selector)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
+    if (rc == TPM_RC_SUCCESS) {						// libtpms added begin
+	if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm, selector)) {
+	    return TPM_RC_SELECTOR;
+	}
+    }									// libtpms added end
+
     switch (selector) {
-#ifdef TPM_ALG_SHA1
+#if ALG_SHA1
       case TPM_ALG_SHA1:
 	rc = Array_Unmarshal(target->sha1, SHA1_DIGEST_SIZE, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SHA256
+#if ALG_SHA256
       case TPM_ALG_SHA256:
 	rc = Array_Unmarshal(target->sha256, SHA256_DIGEST_SIZE, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SHA384
+#if ALG_SHA384
       case TPM_ALG_SHA384:
 	rc = Array_Unmarshal(target->sha384, SHA384_DIGEST_SIZE, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SHA512
+#if ALG_SHA512
       case TPM_ALG_SHA512:
 	rc = Array_Unmarshal(target->sha512, SHA512_DIGEST_SIZE, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SM3_256
+#if ALG_SM3_256
       case TPM_ALG_SM3_256:
 	rc = Array_Unmarshal(target->sm3_256, SM3_256_DIGEST_SIZE, buffer, size);
 	break;
@@ -1454,6 +1797,7 @@ TPMU_HA_Unmarshal(TPMU_HA *target, BYTE **buffer, INT32 *size, UINT32 selector)
 TPM_RC
 TPMT_HA_Unmarshal(TPMT_HA *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
+    TPMT_HA orig_target = *target;			// libtpms added
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
@@ -1462,6 +1806,9 @@ TPMT_HA_Unmarshal(TPMT_HA *target, BYTE **buffer, INT32 *size, BOOL allowNull)
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMU_HA_Unmarshal(&target->digest, buffer, size, target->hashAlg);
     }
+    if (rc != TPM_RC_SUCCESS) {				// libtpms added begin
+	*target = orig_target;
+    }							// libtpms added end
     return rc;
 }
 
@@ -1517,19 +1864,6 @@ TPM2B_AUTH_Unmarshal(TPM2B_AUTH *target, BYTE **buffer, INT32 *size)
     return rc;
 }
 
-/* Table 76 - Definition of Types for TPM2B_OPERAND */
-
-TPM_RC
-TPM2B_OPERAND_Unmarshal(TPM2B_OPERAND *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_DIGEST_Unmarshal(target, buffer, size);
-    }
-    return rc;
-}
-
 /* Table 77 - Definition of TPM2B_EVENT Structure */
 
 TPM_RC
@@ -1542,7 +1876,7 @@ TPM2B_EVENT_Unmarshal(TPM2B_EVENT *target, BYTE **buffer, INT32 *size)
     }
     return rc;
 }
- 
+
 /* Table 78 - Definition of TPM2B_MAX_BUFFER Structure */
 
 TPM_RC
@@ -1614,7 +1948,7 @@ TPM_RC
 TPMS_PCR_SELECTION_Unmarshal(TPMS_PCR_SELECTION *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMI_ALG_HASH_Unmarshal(&target->hash, buffer, size, NO);
     }
@@ -1625,6 +1959,7 @@ TPMS_PCR_SELECTION_Unmarshal(TPMS_PCR_SELECTION *target, BYTE **buffer, INT32 *s
 	if ((target->sizeofSelect < PCR_SELECT_MIN) ||
 	    (target->sizeofSelect > PCR_SELECT_MAX)) {
 	    rc = TPM_RC_VALUE;
+	    target->sizeofSelect = 0; // libtpms added
 	}
     }
     if (rc == TPM_RC_SUCCESS) {
@@ -1632,13 +1967,14 @@ TPMS_PCR_SELECTION_Unmarshal(TPMS_PCR_SELECTION *target, BYTE **buffer, INT32 *s
     }
     return rc;
 }
- 
+
 /* Table 88 - Definition of TPMT_TK_CREATION Structure */
 
 TPM_RC
 TPMT_TK_CREATION_Unmarshal(TPMT_TK_CREATION *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_ST orig_tag = target->tag; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_ST_Unmarshal(&target->tag, buffer, size);
@@ -1646,6 +1982,7 @@ TPMT_TK_CREATION_Unmarshal(TPMT_TK_CREATION *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->tag != TPM_ST_CREATION) {
 	    rc = TPM_RC_TAG;
+	    target->tag = orig_tag; // libtpms added
 	}
     }
     if (rc == TPM_RC_SUCCESS) {
@@ -1663,13 +2000,15 @@ TPM_RC
 TPMT_TK_VERIFIED_Unmarshal(TPMT_TK_VERIFIED *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+    TPM_ST orig_tag = target->tag; // libtpms added
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_ST_Unmarshal(&target->tag, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	if (target->tag != TPM_ST_VERIFIED) {
 	    rc = TPM_RC_TAG;
+	    target->tag = orig_tag; // libtpms added
 	}
     }
     if (rc == TPM_RC_SUCCESS) {
@@ -1687,6 +2026,7 @@ TPM_RC
 TPMT_TK_AUTH_Unmarshal(TPMT_TK_AUTH *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_ST orig_tag = target->tag; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_ST_Unmarshal(&target->tag, buffer, size);
@@ -1695,6 +2035,7 @@ TPMT_TK_AUTH_Unmarshal(TPMT_TK_AUTH *target, BYTE **buffer, INT32 *size)
 	if ((target->tag != TPM_ST_AUTH_SIGNED) &&
 	    (target->tag != TPM_ST_AUTH_SECRET)) {
 	    rc = TPM_RC_TAG;
+	    target->tag = orig_tag; // libtpms added
 	}
     }
     if (rc == TPM_RC_SUCCESS) {
@@ -1712,6 +2053,7 @@ TPM_RC
 TPMT_TK_HASHCHECK_Unmarshal(TPMT_TK_HASHCHECK *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPM_ST orig_tag = target->tag; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_ST_Unmarshal(&target->tag, buffer, size);
@@ -1719,6 +2061,7 @@ TPMT_TK_HASHCHECK_Unmarshal(TPMT_TK_HASHCHECK *target, BYTE **buffer, INT32 *siz
     if (rc == TPM_RC_SUCCESS) {
 	if (target->tag != TPM_ST_HASHCHECK) {
 	    rc = TPM_RC_TAG;
+	    target->tag = orig_tag; // libtpms added
 	}
     }
     if (rc == TPM_RC_SUCCESS) {
@@ -1732,11 +2075,12 @@ TPMT_TK_HASHCHECK_Unmarshal(TPMT_TK_HASHCHECK *target, BYTE **buffer, INT32 *siz
 
 /* Table 92 - Definition of TPMS_ALG_PROPERTY Structure <OUT> */
 
+#if 0		// libtpms added
 TPM_RC
 TPMS_ALG_PROPERTY_Unmarshal(TPMS_ALG_PROPERTY *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_ALG_ID_Unmarshal(&target->alg, buffer, size);
     }
@@ -1745,14 +2089,16 @@ TPMS_ALG_PROPERTY_Unmarshal(TPMS_ALG_PROPERTY *target, BYTE **buffer, INT32 *siz
     }
     return rc;
 }
+#endif		// libtpms added
 
 /* Table 93 - Definition of TPMS_TAGGED_PROPERTY Structure <OUT> */
 
+#if 0		// libtpms added
 TPM_RC
 TPMS_TAGGED_PROPERTY_Unmarshal(TPMS_TAGGED_PROPERTY *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_PT_Unmarshal(&target->property, buffer, size);
     }
@@ -1761,14 +2107,16 @@ TPMS_TAGGED_PROPERTY_Unmarshal(TPMS_TAGGED_PROPERTY *target, BYTE **buffer, INT3
     }
     return rc;
 }
- 
+#endif		// libtpms added
+
 /* Table 94 - Definition of TPMS_TAGGED_PCR_SELECT Structure <OUT> */
 
+#if 0		// libtpms added
 TPM_RC
 TPMS_TAGGED_PCR_SELECT_Unmarshal(TPMS_TAGGED_PCR_SELECT *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_PT_PCR_Unmarshal(&target->tag, buffer, size);
     }
@@ -1776,10 +2124,19 @@ TPMS_TAGGED_PCR_SELECT_Unmarshal(TPMS_TAGGED_PCR_SELECT *target, BYTE **buffer, 
 	rc = UINT8_Unmarshal(&target->sizeofSelect, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
+        // FIXME: Can sizeofSelect be 0?
+	if ((target->sizeofSelect < PCR_SELECT_MIN) ||
+	    (target->sizeofSelect > PCR_SELECT_MAX)) {
+	    rc = TPM_RC_VALUE;
+	    target->sizeofSelect = 0; // libtpms added
+	}
+    }
+    if (rc == TPM_RC_SUCCESS) {
 	rc = Array_Unmarshal(target->pcrSelect, target->sizeofSelect, buffer, size);
     }
      return rc;
 }
+#endif		// libtpms added
 
 /* Table 95 - Definition of TPML_CC Structure */
 
@@ -1787,7 +2144,7 @@ TPM_RC
 TPML_CC_Unmarshal(TPML_CC *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     UINT32 i;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT32_Unmarshal(&target->count, buffer, size);
@@ -1795,6 +2152,7 @@ TPML_CC_Unmarshal(TPML_CC *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > MAX_CAP_CC) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -1805,6 +2163,7 @@ TPML_CC_Unmarshal(TPML_CC *target, BYTE **buffer, INT32 *size)
 
 /* Table 2:96 - Definition of TPMS_TAGGED_POLICY Structure (StructuresTable()) */
 
+#if 0		// libtpms added
 TPM_RC
 TPMS_TAGGED_POLICY_Unmarshal(TPMS_TAGGED_POLICY *target, BYTE **buffer, INT32 *size)
 {
@@ -1812,19 +2171,21 @@ TPMS_TAGGED_POLICY_Unmarshal(TPMS_TAGGED_POLICY *target, BYTE **buffer, INT32 *s
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_HANDLE_Unmarshal(&target->handle, buffer, size);
     }
-    if (rc == TPM_RC_SUCCESS) {	
+    if (rc == TPM_RC_SUCCESS) {
 	rc = TPMT_HA_Unmarshal(&target->policyHash, buffer, size, NO);
-    }	
+    }
     return rc;
 }
+#endif		// libtpms added
 
 /* Table 96 - Definition of TPML_CCA Structure <OUT> */
 
+#if 0		// libtpms added
 TPM_RC
 TPML_CCA_Unmarshal(TPML_CCA *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     UINT32 i;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT32_Unmarshal(&target->count, buffer, size);
@@ -1832,6 +2193,7 @@ TPML_CCA_Unmarshal(TPML_CCA *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > MAX_CAP_CC) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -1839,14 +2201,15 @@ TPML_CCA_Unmarshal(TPML_CCA *target, BYTE **buffer, INT32 *size)
     }
     return rc;
 }
- 
+#endif		// libtpms added
+
 /* Table 97 - Definition of TPML_ALG Structure */
 
 TPM_RC
 TPML_ALG_Unmarshal(TPML_ALG *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     UINT32 i;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT32_Unmarshal(&target->count, buffer, size);
@@ -1854,6 +2217,7 @@ TPML_ALG_Unmarshal(TPML_ALG *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > MAX_ALG_LIST_SIZE) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -1864,11 +2228,12 @@ TPML_ALG_Unmarshal(TPML_ALG *target, BYTE **buffer, INT32 *size)
 
 /* Table 98 - Definition of TPML_HANDLE Structure <OUT> */
 
+#if 0		// libtpms added
 TPM_RC
 TPML_HANDLE_Unmarshal(TPML_HANDLE *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     UINT32 i;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT32_Unmarshal(&target->count, buffer, size);
@@ -1876,6 +2241,7 @@ TPML_HANDLE_Unmarshal(TPML_HANDLE *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > MAX_CAP_HANDLES) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -1883,6 +2249,7 @@ TPML_HANDLE_Unmarshal(TPML_HANDLE *target, BYTE **buffer, INT32 *size)
     }
     return rc;
 }
+#endif		// libtpms added
 
 /* Table 99 - Definition of TPML_DIGEST Structure */
 
@@ -1891,34 +2258,25 @@ TPML_HANDLE_Unmarshal(TPML_HANDLE *target, BYTE **buffer, INT32 *size)
 */
 
 TPM_RC
-TPML_DIGEST_Unmarshal(TPML_DIGEST *target, BYTE **buffer, INT32 *size
-#ifdef TPM_TSS
-		      , uint32_t minCount
-#endif
-		      )
+TPML_DIGEST_Unmarshal(TPML_DIGEST *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     UINT32 i;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT32_Unmarshal(&target->count, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
-#ifdef TPM_TSS
-	/* TSS side permits the caller to specify the minimum */
-	if (target->count < minCount) {
-	    rc = TPM_RC_SIZE;
-	}
-#else
 	/* TPM side is hard coded to 2 minimum */
 	if (target->count < 2) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
-#endif
     }
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > 8) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -1933,7 +2291,7 @@ TPM_RC
 TPML_DIGEST_VALUES_Unmarshal(TPML_DIGEST_VALUES *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     UINT32 i;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT32_Unmarshal(&target->count, buffer, size);
@@ -1941,6 +2299,7 @@ TPML_DIGEST_VALUES_Unmarshal(TPML_DIGEST_VALUES *target, BYTE **buffer, INT32 *s
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > HASH_COUNT) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -1955,7 +2314,7 @@ TPM_RC
 TPML_PCR_SELECTION_Unmarshal(TPML_PCR_SELECTION *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     UINT32 i;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT32_Unmarshal(&target->count, buffer, size);
@@ -1963,6 +2322,7 @@ TPML_PCR_SELECTION_Unmarshal(TPML_PCR_SELECTION *target, BYTE **buffer, INT32 *s
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > HASH_COUNT) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -1970,6 +2330,9 @@ TPML_PCR_SELECTION_Unmarshal(TPML_PCR_SELECTION *target, BYTE **buffer, INT32 *s
     }
     return rc;
 }
+
+
+#if 0
 
 /* Table 103 - Definition of TPML_ALG_PROPERTY Structure <OUT> */
 
@@ -1985,6 +2348,7 @@ TPML_ALG_PROPERTY_Unmarshal(TPML_ALG_PROPERTY *target, BYTE **buffer, INT32 *siz
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > MAX_CAP_ALGS) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -2007,6 +2371,7 @@ TPML_TAGGED_TPM_PROPERTY_Unmarshal(TPML_TAGGED_TPM_PROPERTY  *target, BYTE **buf
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > MAX_TPM_PROPERTIES) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -2029,6 +2394,7 @@ TPML_TAGGED_PCR_PROPERTY_Unmarshal(TPML_TAGGED_PCR_PROPERTY *target, BYTE **buff
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > MAX_PCR_PROPERTIES) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -2039,6 +2405,7 @@ TPML_TAGGED_PCR_PROPERTY_Unmarshal(TPML_TAGGED_PCR_PROPERTY *target, BYTE **buff
 
 /* Table 106 - Definition of {ECC} TPML_ECC_CURVE Structure <OUT> */
 
+#if 0
 TPM_RC
 TPML_ECC_CURVE_Unmarshal(TPML_ECC_CURVE *target, BYTE **buffer, INT32 *size)
 {
@@ -2051,6 +2418,7 @@ TPML_ECC_CURVE_Unmarshal(TPML_ECC_CURVE *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > MAX_ECC_CURVES) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -2058,6 +2426,7 @@ TPML_ECC_CURVE_Unmarshal(TPML_ECC_CURVE *target, BYTE **buffer, INT32 *size)
     }
     return rc;
 }
+#endif
 
 /* Table 2:109 - Definition of TPML_TAGGED_POLICY Structure (StructuresTable()) */
 
@@ -2073,6 +2442,7 @@ TPML_TAGGED_POLICY_Unmarshal(TPML_TAGGED_POLICY *target, BYTE **buffer, INT32 *s
     if (rc == TPM_RC_SUCCESS) {
 	if (target->count > MAX_TAGGED_POLICIES) {
 	    rc = TPM_RC_SIZE;
+	    target->count = 0; // libtpms added
 	}
     }
     for (i = 0 ; (rc == TPM_RC_SUCCESS) && (i < target->count) ; i++) {
@@ -2081,8 +2451,12 @@ TPML_TAGGED_POLICY_Unmarshal(TPML_TAGGED_POLICY *target, BYTE **buffer, INT32 *s
     return rc;
 }
 
+#endif					// libtpms added
+
+
 /* Table 2:110 - Definition of TPMU_CAPABILITIES Union (StructuresTable()) */
 
+#if 0
 TPM_RC
 TPMU_CAPABILITIES_Unmarshal(TPMU_CAPABILITIES *target, BYTE **buffer, INT32 *size, UINT32 selector)
 {
@@ -2116,7 +2490,7 @@ TPMU_CAPABILITIES_Unmarshal(TPMU_CAPABILITIES *target, BYTE **buffer, INT32 *siz
       case TPM_CAP_ECC_CURVES:
 	rc = TPML_ECC_CURVE_Unmarshal(&target->eccCurves, buffer, size);
 	break;
-      case TPM_CAP_AUTH_POLICIES:	
+      case TPM_CAP_AUTH_POLICIES:
 	rc = TPML_TAGGED_POLICY_Unmarshal(&target->authPolicies, buffer, size);
 	break;
       default:
@@ -2124,14 +2498,16 @@ TPMU_CAPABILITIES_Unmarshal(TPMU_CAPABILITIES *target, BYTE **buffer, INT32 *siz
     }
     return rc;
 }
+#endif
 
-/* Table 2:111 - Definition of TPMS_CAPABILITY_DATA Structure (StructuresTable()) */
+/* Table 128 - Definition of TPMS_CAPABILITY_DATA Structure (StructuresTable()) */
 
+#if 0
 TPM_RC
 TPMS_CAPABILITY_DATA_Unmarshal(TPMS_CAPABILITY_DATA *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-  
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_CAP_Unmarshal(&target->capability, buffer, size);
     }
@@ -2140,6 +2516,74 @@ TPMS_CAPABILITY_DATA_Unmarshal(TPMS_CAPABILITY_DATA *target, BYTE **buffer, INT3
     }
     return rc;
 }
+#endif
+
+/* NOTE The TPMU_SET_CAPABILITIES structure may be defined by a TCG Registry. */
+TPM_RC
+TPMU_SET_CAPABILITIES_Unmarshal(TPMU_SET_CAPABILITIES *target LIBTPMS_ATTR_UNUSED,
+                                BYTE **buffer LIBTPMS_ATTR_UNUSED,
+                                INT32 *size LIBTPMS_ATTR_UNUSED,
+                                UINT32 selector)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    switch (selector) {
+      default:
+	rc = TPM_RC_SELECTOR;
+    }
+    return rc;
+}
+
+/* Table 129 - Definition of TPMS_SET_CAPABILITY_DATA Structure <IN> */
+TPM_RC
+TPMS_SET_CAPABILITY_DATA_Unmarshal(TPMS_SET_CAPABILITY_DATA *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_CAP_Unmarshal(&target->setCapability, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPMU_SET_CAPABILITIES_Unmarshal(&target->data, buffer, size, target->setCapability);
+    }
+    return rc;
+}
+
+/* Table 130 - Definition of TPM2B_SET_CAPABILITY_DATA Structure <IN> */
+TPM_RC
+TPM2B_SET_CAPABILITY_DATA_Unmarshal(TPM2B_SET_CAPABILITY_DATA *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    INT32 startSize;
+    if (rc == TPM_RC_SUCCESS) {
+	rc = UINT16_Unmarshal(&target->size, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	if (target->size == 0) {
+	    rc = TPM_RC_SIZE;
+	}
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	startSize = *size;
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPMS_SET_CAPABILITY_DATA_Unmarshal(&target->setCapabilityData, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	if (target->size != startSize - *size) {
+	    rc = TPM_RC_SIZE;
+	}
+    }
+    return rc;
+}
+
+#if 0					// libtpms added
+typedef struct {
+    UINT16				size;
+    TPMS_SET_CAPABILITY_DATA	setCapabilityData;
+} TPM2B_SET_CAPABILITY_DATA;
+
 
 /* Table 109 - Definition of TPMS_CLOCK_INFO Structure */
 
@@ -2169,7 +2613,7 @@ TPM_RC
 TPMS_TIME_INFO_Unmarshal(TPMS_TIME_INFO *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT64_Unmarshal(&target->time, buffer, size);
     }
@@ -2306,6 +2750,7 @@ TPM_RC
 TPMI_ST_ATTEST_Unmarshal(TPMI_ST_ATTEST *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ST_ATTEST orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM_ST_Unmarshal(target, buffer, size);
@@ -2322,6 +2767,7 @@ TPMI_ST_ATTEST_Unmarshal(TPMI_ST_ATTEST *target, BYTE **buffer, INT32 *size)
 	    break;
 	  default:
 	    rc = TPM_RC_SELECTOR;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -2358,7 +2804,7 @@ TPMU_ATTEST_Unmarshal(TPMU_ATTEST *target, BYTE **buffer, INT32 *size, UINT32 se
 	break;
       default:
 	rc = TPM_RC_SELECTOR;
-	
+
     }
     return rc;
 }
@@ -2400,97 +2846,156 @@ TPM_RC
 TPM2B_ATTEST_Unmarshal(TPM2B_ATTEST *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM2B_Unmarshal(&target->b, sizeof(TPMS_ATTEST), buffer, size);
     }
     return rc;
 }
 
-/* Table 123 - Definition of TPMS_AUTH_RESPONSE Structure <OUT> */
-
-TPM_RC
-TPMS_AUTH_RESPONSE_Unmarshal(TPMS_AUTH_RESPONSE *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-    
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_NONCE_Unmarshal(&target->nonce, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMA_SESSION_Unmarshal(&target->sessionAttributes, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_AUTH_Unmarshal(&target->hmac, buffer, size);
-    }
-    return rc;
-}
+#endif
 
 /* Table 124 - Definition of {!ALG.S} (TPM_KEY_BITS) TPMI_!ALG.S_KEY_BITS Type */
 
-#ifdef TPM_ALG_AES
+#if ALG_AES
 TPM_RC
 TPMI_AES_KEY_BITS_Unmarshal(TPMI_AES_KEY_BITS *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_AES_KEY_BITS orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_KEY_BITS_Unmarshal(target, buffer, size);  
+	rc = TPM_KEY_BITS_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
+#if AES_128	// libtpms added
 	  case 128:
+#endif		// libtpms added begin
+#if AES_192
+	  case 192:
+#endif
+#if AES_256	// libtpms added end
 	  case 256:
+#endif		// libtpms added
+	    if (!RuntimeAlgorithmKeySizeCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+						     TPM_ALG_AES,
+						     *target,
+						     g_RuntimeProfile.stateFormatLevel)) {
+		rc = TPM_RC_VALUE;
+	    }											// libtpms added end
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 #endif
- 
-#ifdef TPM_ALG_CAMELLIA
+
+#if ALG_CAMELLIA
 TPM_RC
 TPMI_CAMELLIA_KEY_BITS_Unmarshal(TPMI_CAMELLIA_KEY_BITS *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_CAMELLIA_KEY_BITS orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_KEY_BITS_Unmarshal(target, buffer, size);  
+	rc = TPM_KEY_BITS_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
+#if CAMELLIA_128	// libtpms added
 	  case 128:
+#endif			// libtpms added begin
+#if CAMELLIA_192
+	  case 192:
+#endif
+#if CAMELLIA_256
+	  case 256:
+#endif			// libtpms added end
+	    if (!RuntimeAlgorithmKeySizeCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+						     TPM_ALG_CAMELLIA,
+						     *target,
+						     g_RuntimeProfile.stateFormatLevel)) {
+		rc = TPM_RC_VALUE;
+	    }											// libtpms added end
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 #endif
 
-#ifdef TPM_ALG_SM4
+#if ALG_SM4
 TPM_RC
 TPMI_SM4_KEY_BITS_Unmarshal(TPMI_SM4_KEY_BITS *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_SM4_KEY_BITS orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_KEY_BITS_Unmarshal(target, buffer, size);  
+	rc = TPM_KEY_BITS_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
 	  case 128:
+	    if (!RuntimeAlgorithmKeySizeCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+						     TPM_ALG_SM4,
+						     *target)) {
+		rc = TPM_RC_VALUE;
+	    }											// libtpms added end
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 #endif
+
+#if ALG_TDES		// libtpms added begin
+TPM_RC
+TPMI_TDES_KEY_BITS_Unmarshal(TPMI_TDES_KEY_BITS *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_TDES_KEY_BITS orig_target = *target; // libtpms added
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_KEY_BITS_Unmarshal(target, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	switch (*target) {
+	  case 128:
+	  case 192:
+	    if (!RuntimeAlgorithmKeySizeCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,// libtpms added begin
+						     TPM_ALG_TDES,
+						     *target,
+						     g_RuntimeProfile.stateFormatLevel)) {
+		rc = TPM_RC_VALUE;
+	    }										// libtpms added end
+	    break;
+	  default:
+	    rc = TPM_RC_VALUE;
+	}
+    }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
+    return rc;
+}
+#endif			// libtpms added end
 
 /* Table 125 - Definition of TPMU_SYM_KEY_BITS Union */
 
@@ -2499,25 +3004,36 @@ TPMU_SYM_KEY_BITS_Unmarshal(TPMU_SYM_KEY_BITS *target, BYTE **buffer, INT32 *siz
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
+    if (rc == TPM_RC_SUCCESS) {						// libtpms added begin
+	if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm, selector)) {
+	    return TPM_RC_SELECTOR;
+	}
+    }									// libtpms added end
+
     switch (selector) {
-#ifdef TPM_ALG_AES
+#if ALG_AES
       case TPM_ALG_AES:
 	rc = TPMI_AES_KEY_BITS_Unmarshal(&target->aes, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SM4
+#if ALG_SM4
       case TPM_ALG_SM4:
 	rc = TPMI_SM4_KEY_BITS_Unmarshal(&target->sm4, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_CAMELLIA
+#if ALG_CAMELLIA
       case TPM_ALG_CAMELLIA:
 	rc = TPMI_CAMELLIA_KEY_BITS_Unmarshal(&target->camellia, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_XOR
+#if ALG_TDES		// libtpms added begin
+      case TPM_ALG_TDES:
+	rc = TPMI_TDES_KEY_BITS_Unmarshal(&target->tdes, buffer, size);
+	break;
+#endif			// libtpms added end
+#if ALG_XOR
       case TPM_ALG_XOR:
-	rc = TPMI_ALG_HASH_Unmarshal(&target->xorr, buffer, size, NO);
+	rc = TPMI_ALG_HASH_Unmarshal(&target->xor, buffer, size, NO);
 	break;
 #endif
       case TPM_ALG_NULL:
@@ -2535,22 +3051,33 @@ TPMU_SYM_MODE_Unmarshal(TPMU_SYM_MODE *target, BYTE **buffer, INT32 *size, UINT3
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
+    if (rc == TPM_RC_SUCCESS) {						// libtpms added begin
+	if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm, selector)) {
+	    return TPM_RC_SELECTOR;
+	}
+    }									// libtpms added end
+
     switch (selector) {
-#ifdef TPM_ALG_AES
+#if ALG_AES
       case TPM_ALG_AES:
 	rc = TPMI_ALG_SYM_MODE_Unmarshal(&target->aes, buffer, size, YES);
 	break;
 #endif
-#ifdef TPM_ALG_SM4
+#if ALG_SM4
       case TPM_ALG_SM4:
 	rc = TPMI_ALG_SYM_MODE_Unmarshal(&target->sm4, buffer, size, YES);
 	break;
 #endif
-#ifdef TPM_ALG_CAMELLIA
+#if ALG_CAMELLIA
       case TPM_ALG_CAMELLIA:
 	rc = TPMI_ALG_SYM_MODE_Unmarshal(&target->camellia, buffer, size, YES);
 	break;
 #endif
+#if ALG_TDES		// libtpms added begin
+      case TPM_ALG_TDES:
+	rc = TPMI_ALG_SYM_MODE_Unmarshal(&target->tdes, buffer, size, YES);
+	break;
+#endif			// libtpms added end
       case TPM_ALG_XOR:
       case TPM_ALG_NULL:
 	break;
@@ -2604,7 +3131,7 @@ TPM_RC
 TPM2B_SYM_KEY_Unmarshal(TPM2B_SYM_KEY *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM2B_Unmarshal(&target->b, MAX_SYM_KEY_BYTES, buffer, size);
     }
@@ -2617,7 +3144,7 @@ TPM_RC
 TPMS_SYMCIPHER_PARMS_Unmarshal(TPMS_SYMCIPHER_PARMS *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMT_SYM_DEF_OBJECT_Unmarshal(&target->sym, buffer, size, NO);
     }
@@ -2630,7 +3157,7 @@ TPM_RC
 TPM2B_LABEL_Unmarshal(TPM2B_LABEL *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM2B_Unmarshal(&target->b, LABEL_MAX_BUFFER, buffer, size);
     }
@@ -2643,25 +3170,12 @@ TPM_RC
 TPMS_DERIVE_Unmarshal(TPMS_DERIVE *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM2B_LABEL_Unmarshal(&target->label, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM2B_LABEL_Unmarshal(&target->context, buffer, size);
-    }
-    return rc;
-}
-
-/* Table 2:137 - Definition of TPM2B_DERIVE Structure (StructuresTable()) */
-
-TPM_RC
-TPM2B_DERIVE_Unmarshal(TPM2B_DERIVE *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_Unmarshal(&target->b, sizeof(TPMS_DERIVE), buffer, size);
     }
     return rc;
 }
@@ -2672,7 +3186,7 @@ TPM_RC
 TPM2B_SENSITIVE_DATA_Unmarshal(TPM2B_SENSITIVE_DATA *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM2B_Unmarshal(&target->b, MAX_SYM_DATA, buffer, size);
     }
@@ -2684,14 +3198,18 @@ TPM2B_SENSITIVE_DATA_Unmarshal(TPM2B_SENSITIVE_DATA *target, BYTE **buffer, INT3
 TPM_RC
 TPMS_SENSITIVE_CREATE_Unmarshal(TPMS_SENSITIVE_CREATE *target, BYTE **buffer, INT32 *size)
 {
+    TPMS_SENSITIVE_CREATE orig_target = *target;	// libtpms added
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM2B_AUTH_Unmarshal(&target->userAuth, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM2B_SENSITIVE_DATA_Unmarshal(&target->data, buffer, size);
     }
+    if (rc != TPM_RC_SUCCESS) {				// libtpms added begin
+	*target = orig_target;
+    }							// libtpms added end
     return rc;
 }
 
@@ -2701,7 +3219,7 @@ TPM_RC
 TPM2B_SENSITIVE_CREATE_Unmarshal(TPM2B_SENSITIVE_CREATE *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     INT32 startSize;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT16_Unmarshal(&target->size, buffer, size);
@@ -2720,6 +3238,7 @@ TPM2B_SENSITIVE_CREATE_Unmarshal(TPM2B_SENSITIVE_CREATE *target, BYTE **buffer, 
     if (rc == TPM_RC_SUCCESS) {
 	if (target->size != startSize - *size) {
 	    rc = TPM_RC_SIZE;
+	    target->size = 0; // libtpms added
 	}
     }
     return rc;
@@ -2731,7 +3250,7 @@ TPM_RC
 TPMS_SCHEME_HASH_Unmarshal(TPMS_SCHEME_HASH *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMI_ALG_HASH_Unmarshal(&target->hashAlg, buffer, size, NO);
     }
@@ -2741,15 +3260,15 @@ TPMS_SCHEME_HASH_Unmarshal(TPMS_SCHEME_HASH *target, BYTE **buffer, INT32 *size)
 /* Table 136 - Definition of {ECC} TPMS_SCHEME_ECDAA Structure */
 
 TPM_RC
-TPMS_SCHEME_ECDAA_Unmarshal(TPMS_SCHEME_ECDAA *target, BYTE **buffer, INT32 *size) 
+TPMS_SCHEME_ECDAA_Unmarshal(TPMS_SCHEME_ECDAA *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPMI_ALG_HASH_Unmarshal(&target->hashAlg, buffer, size, NO);	
+	rc = TPMI_ALG_HASH_Unmarshal(&target->hashAlg, buffer, size, NO);
     }
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT16_Unmarshal(&target->count, buffer, size);	
+	rc = UINT16_Unmarshal(&target->count, buffer, size);
     }
     return rc;
 }
@@ -2760,25 +3279,28 @@ TPM_RC
 TPMI_ALG_KEYEDHASH_SCHEME_Unmarshal(TPMI_ALG_KEYEDHASH_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_KEYEDHASH_SCHEME orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_HMAC
-	  case TPM_ALG_HMAC:	
+#if ALG_HMAC
+	  case TPM_ALG_HMAC:
 #endif
-#ifdef TPM_ALG_XOR
-	  case TPM_ALG_XOR:	
+#if ALG_XOR
+	  case TPM_ALG_XOR:
 #endif
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -2790,7 +3312,7 @@ TPM_RC
 TPMS_SCHEME_HMAC_Unmarshal(TPMS_SCHEME_HMAC *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size);
     }
@@ -2803,16 +3325,16 @@ TPM_RC
 TPMS_SCHEME_XOR_Unmarshal(TPMS_SCHEME_XOR *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPMI_ALG_HASH_Unmarshal(&target->hashAlg, buffer, size, YES);
+	rc = TPMI_ALG_HASH_Unmarshal(&target->hashAlg, buffer, size, NO);	/* as of rev 147 */
     }
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMI_ALG_KDF_Unmarshal(&target->kdf, buffer, size, YES);
     }
     return rc;
 }
-    
+
 /* Table 140 - Definition of TPMU_SCHEME_KEYEDHASH Union <IN/OUT, S> */
 
 TPM_RC
@@ -2821,14 +3343,14 @@ TPMU_SCHEME_KEYEDHASH_Unmarshal(TPMU_SCHEME_KEYEDHASH *target, BYTE **buffer, IN
     TPM_RC rc = TPM_RC_SUCCESS;
 
     switch (selector) {
-#ifdef TPM_ALG_HMAC
+#if ALG_HMAC
       case TPM_ALG_HMAC:
 	rc = TPMS_SCHEME_HMAC_Unmarshal(&target->hmac, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_XOR
+#if ALG_XOR
       case TPM_ALG_XOR:
-	rc = TPMS_SCHEME_XOR_Unmarshal(&target->xorr, buffer, size);
+	rc = TPMS_SCHEME_XOR_Unmarshal(&target->xor, buffer, size);
 	break;
 #endif
       case TPM_ALG_NULL:
@@ -2861,7 +3383,7 @@ TPM_RC
 TPMS_SIG_SCHEME_RSAPSS_Unmarshal(TPMS_SIG_SCHEME_RSAPSS *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size);
     }
@@ -2940,38 +3462,42 @@ TPMU_SIG_SCHEME_Unmarshal(TPMU_SIG_SCHEME *target, BYTE **buffer, INT32 *size, U
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
+    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm, selector)) {	// libtpms added begin
+	return TPM_RC_SELECTOR;
+    }											// libtpms added end
+
     switch (selector) {
-#ifdef TPM_ALG_RSASSA
+#if ALG_RSASSA
       case TPM_ALG_RSASSA:
 	rc = TPMS_SIG_SCHEME_RSASSA_Unmarshal(&target->rsassa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_RSAPSS
+#if ALG_RSAPSS
       case TPM_ALG_RSAPSS:
 	rc = TPMS_SIG_SCHEME_RSAPSS_Unmarshal(&target->rsapss, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECDSA
+#if ALG_ECDSA
       case TPM_ALG_ECDSA:
 	rc = TPMS_SIG_SCHEME_ECDSA_Unmarshal(&target->ecdsa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECDAA
+#if ALG_ECDAA
       case TPM_ALG_ECDAA:
 	rc = TPMS_SIG_SCHEME_ECDAA_Unmarshal(&target->ecdaa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SM2
+#if ALG_SM2
       case TPM_ALG_SM2:
 	rc = TPMS_SIG_SCHEME_SM2_Unmarshal(&target->sm2, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECSCHNORR
+#if ALG_ECSCHNORR
       case TPM_ALG_ECSCHNORR:
 	rc = TPMS_SIG_SCHEME_ECSCHNORR_Unmarshal(&target->ecschnorr, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_HMAC
+#if ALG_HMAC
       case TPM_ALG_HMAC:
 	rc = TPMS_SCHEME_HMAC_Unmarshal(&target->hmac, buffer, size);
 	break;
@@ -2989,6 +3515,7 @@ TPMU_SIG_SCHEME_Unmarshal(TPMU_SIG_SCHEME *target, BYTE **buffer, INT32 *size, U
 TPM_RC
 TPMT_SIG_SCHEME_Unmarshal(TPMT_SIG_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
+    TPMT_SIG_SCHEME orig_target = *target;		// libtpms added
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
@@ -2997,6 +3524,9 @@ TPMT_SIG_SCHEME_Unmarshal(TPMT_SIG_SCHEME *target, BYTE **buffer, INT32 *size, B
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMU_SIG_SCHEME_Unmarshal(&target->details, buffer, size, target->scheme);
     }
+    if (rc != TPM_RC_SUCCESS) {				// libtpms added begin
+	*target = orig_target;
+    }							// libtpms added end
     return rc;
 }
 
@@ -3034,7 +3564,7 @@ TPMS_KEY_SCHEME_ECDH_Unmarshal(TPMS_KEY_SCHEME_ECDH *target, BYTE **buffer, INT3
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size); 
+	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size);
     }
     return rc;
 }
@@ -3047,7 +3577,7 @@ TPMS_KEY_SCHEME_ECMQV_Unmarshal(TPMS_KEY_SCHEME_ECMQV *target, BYTE **buffer, IN
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size); 
+	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size);
     }
     return rc;
 }
@@ -3055,33 +3585,7 @@ TPMS_KEY_SCHEME_ECMQV_Unmarshal(TPMS_KEY_SCHEME_ECMQV *target, BYTE **buffer, IN
 /* Table 148 - Definition of Types for KDF Schemes, hash-based key- or mask-generation functions */
 
 TPM_RC
-TPMS_SCHEME_KDF1_SP800_108_Unmarshal(TPMS_SCHEME_KDF1_SP800_108 *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size); 
-    }
-    return rc;
-}
-
-/* Table 148 - Definition of Types for KDF Schemes, hash-based key- or mask-generation functions */
-
-TPM_RC
-TPMS_SCHEME_KDF1_SP800_56A_Unmarshal(TPMS_SCHEME_KDF1_SP800_56A *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size); 
-    }
-    return rc;
-}
-
-/* Table 148 - Definition of Types for KDF Schemes, hash-based key- or mask-generation functions */
-
-TPM_RC
-TPMS_SCHEME_KDF2_Unmarshal(TPMS_SCHEME_KDF2 *target, BYTE **buffer, INT32 *size)
+TPMS_KDF_SCHEME_KDF1_SP800_108_Unmarshal(TPMS_KDF_SCHEME_KDF1_SP800_108 *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
@@ -3094,7 +3598,33 @@ TPMS_SCHEME_KDF2_Unmarshal(TPMS_SCHEME_KDF2 *target, BYTE **buffer, INT32 *size)
 /* Table 148 - Definition of Types for KDF Schemes, hash-based key- or mask-generation functions */
 
 TPM_RC
-TPMS_SCHEME_MGF1_Unmarshal(TPMS_SCHEME_MGF1 *target, BYTE **buffer, INT32 *size)
+TPMS_KDF_SCHEME_KDF1_SP800_56A_Unmarshal(TPMS_KDF_SCHEME_KDF1_SP800_56A *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size);
+    }
+    return rc;
+}
+
+/* Table 148 - Definition of Types for KDF Schemes, hash-based key- or mask-generation functions */
+
+TPM_RC
+TPMS_KDF_SCHEME_KDF2_Unmarshal(TPMS_KDF_SCHEME_KDF2 *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPMS_SCHEME_HASH_Unmarshal(target, buffer, size);
+    }
+    return rc;
+}
+
+/* Table 148 - Definition of Types for KDF Schemes, hash-based key- or mask-generation functions */
+
+TPM_RC
+TPMS_KDF_SCHEME_MGF1_Unmarshal(TPMS_KDF_SCHEME_MGF1 *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
@@ -3112,24 +3642,24 @@ TPMU_KDF_SCHEME_Unmarshal(TPMU_KDF_SCHEME *target, BYTE **buffer, INT32 *size, U
     TPM_RC rc = TPM_RC_SUCCESS;
 
     switch (selector) {
-#ifdef TPM_ALG_MGF1
+#if ALG_MGF1
       case TPM_ALG_MGF1:
-	rc = TPMS_SCHEME_MGF1_Unmarshal(&target->mgf1, buffer, size);
+	rc = TPMS_KDF_SCHEME_MGF1_Unmarshal(&target->mgf1, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_KDF1_SP800_56A
+#if ALG_KDF1_SP800_56A
       case TPM_ALG_KDF1_SP800_56A:
-	rc = TPMS_SCHEME_KDF1_SP800_56A_Unmarshal(&target->kdf1_sp800_56a, buffer, size);
+	rc = TPMS_KDF_SCHEME_KDF1_SP800_56A_Unmarshal(&target->kdf1_sp800_56a, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_KDF2
+#if ALG_KDF2
       case TPM_ALG_KDF2:
-	rc = TPMS_SCHEME_KDF2_Unmarshal(&target->kdf2, buffer, size);
+	rc = TPMS_KDF_SCHEME_KDF2_Unmarshal(&target->kdf2, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_KDF1_SP800_108
+#if ALG_KDF1_SP800_108
       case TPM_ALG_KDF1_SP800_108:
-	rc = TPMS_SCHEME_KDF1_SP800_108_Unmarshal(&target->kdf1_sp800_108, buffer, size);
+	rc = TPMS_KDF_SCHEME_KDF1_SP800_108_Unmarshal(&target->kdf1_sp800_108, buffer, size);
 	break;
 #endif
       case TPM_ALG_NULL:
@@ -3163,42 +3693,46 @@ TPM_RC
 TPMI_ALG_ASYM_SCHEME_Unmarshal(TPMI_ALG_ASYM_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_ASYM_SCHEME orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_ECDH
+#if ALG_ECDH
 	  case TPM_ALG_ECDH:
 #endif
-#ifdef TPM_ALG_ECMQV
+#if ALG_ECMQV
 	  case TPM_ALG_ECMQV:
 #endif
-#ifdef TPM_ALG_RSASSA
+#if ALG_RSASSA
 	  case TPM_ALG_RSASSA:
 #endif
-#ifdef TPM_ALG_RSAPSS
+#if ALG_RSAPSS
 	  case TPM_ALG_RSAPSS:
 #endif
-#ifdef TPM_ALG_ECDSA
+#if ALG_ECDSA
 	  case TPM_ALG_ECDSA:
 #endif
-#ifdef TPM_ALG_ECDAA
+#if ALG_ECDAA
 	  case TPM_ALG_ECDAA:
 #endif
-#ifdef TPM_ALG_SM2
+#if ALG_SM2
 	  case TPM_ALG_SM2:
 #endif
-#ifdef TPM_ALG_ECSCHNORR
+#if ALG_ECSCHNORR
 	  case TPM_ALG_ECSCHNORR:
 #endif
-#ifdef TPM_ALG_RSAES
+#if ALG_RSAES
 	  case TPM_ALG_RSAES:
 #endif
-#ifdef TPM_ALG_OAEP
+#if ALG_OAEP
 	  case TPM_ALG_OAEP:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm, *target)) {	// libtpms added begin
+		rc = TPM_RC_VALUE;
+	    }											// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
@@ -3208,6 +3742,9 @@ TPMI_ALG_ASYM_SCHEME_Unmarshal(TPMI_ALG_ASYM_SCHEME *target, BYTE **buffer, INT3
 	    rc = TPM_RC_VALUE;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 #endif
@@ -3219,53 +3756,59 @@ TPMU_ASYM_SCHEME_Unmarshal(TPMU_ASYM_SCHEME *target, BYTE **buffer, INT32 *size,
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
+    if (rc == TPM_RC_SUCCESS) {					// libtpms added begin
+	if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm, selector)) {
+	    return TPM_RC_SELECTOR;
+	}
+    }								// libtpms added end
+
     switch (selector) {
-#ifdef TPM_ALG_ECDH
+#if ALG_ECDH
       case TPM_ALG_ECDH:
 	rc = TPMS_KEY_SCHEME_ECDH_Unmarshal(&target->ecdh, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECMQV
+#if ALG_ECMQV
       case TPM_ALG_ECMQV:
 	rc = TPMS_KEY_SCHEME_ECMQV_Unmarshal(&target->ecmqv, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_RSASSA
+#if ALG_RSASSA
       case TPM_ALG_RSASSA:
 	rc = TPMS_SIG_SCHEME_RSASSA_Unmarshal(&target->rsassa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_RSAPSS
+#if ALG_RSAPSS
       case TPM_ALG_RSAPSS:
 	rc = TPMS_SIG_SCHEME_RSAPSS_Unmarshal(&target->rsapss, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECDSA
+#if ALG_ECDSA
       case TPM_ALG_ECDSA:
 	rc = TPMS_SIG_SCHEME_ECDSA_Unmarshal(&target->ecdsa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECDAA
+#if ALG_ECDAA
       case TPM_ALG_ECDAA:
 	rc = TPMS_SIG_SCHEME_ECDAA_Unmarshal(&target->ecdaa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SM2
+#if ALG_SM2
       case TPM_ALG_SM2:
 	rc = TPMS_SIG_SCHEME_SM2_Unmarshal(&target->sm2, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECSCHNORR
+#if ALG_ECSCHNORR
       case TPM_ALG_ECSCHNORR:
 	rc = TPMS_SIG_SCHEME_ECSCHNORR_Unmarshal(&target->ecschnorr, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_RSAES
+#if ALG_RSAES
       case TPM_ALG_RSAES:
 	rc = TPMS_ENC_SCHEME_RSAES_Unmarshal(&target->rsaes, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_OAEP
+#if ALG_OAEP
       case TPM_ALG_OAEP:
 	rc = TPMS_ENC_SCHEME_OAEP_Unmarshal(&target->oaep, buffer, size);
 	break;
@@ -3278,57 +3821,48 @@ TPMU_ASYM_SCHEME_Unmarshal(TPMU_ASYM_SCHEME *target, BYTE **buffer, INT32 *size,
     return rc;
 }
 
-/* Table 153 - Definition of TPMT_ASYM_SCHEME Structure <> */
-
-#if 0
-TPM_RC
-TPMT_ASYM_SCHEME_Unmarshal(TPMT_ASYM_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMI_ALG_ASYM_SCHEME_Unmarshal(&target->scheme, buffer, size, allowNull);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMU_ASYM_SCHEME_Unmarshal(&target->details, buffer, size, target->scheme);
-    }
-    return rc;
-}
-#endif
-
 /* Table 154 - Definition of (TPM_ALG_ID) {RSA} TPMI_ALG_RSA_SCHEME Type */
 
 TPM_RC
 TPMI_ALG_RSA_SCHEME_Unmarshal(TPMI_ALG_RSA_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_RSA_SCHEME orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_RSASSA
+#if ALG_RSASSA
 	  case TPM_ALG_RSASSA:
 #endif
-#ifdef TPM_ALG_RSAPSS
+#if ALG_RSAPSS
 	  case TPM_ALG_RSAPSS:
 #endif
-#ifdef TPM_ALG_RSAES
+#if ALG_RSAES
 	  case TPM_ALG_RSAES:
 #endif
-#ifdef TPM_ALG_OAEP
+#if ALG_OAEP
 	  case TPM_ALG_OAEP:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,	// libtpms added begin
+					      *target)) {
+		rc = TPM_RC_VALUE;
+	    }										// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_VALUE;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
@@ -3354,25 +3888,29 @@ TPM_RC
 TPMI_ALG_RSA_DECRYPT_Unmarshal(TPMI_ALG_RSA_DECRYPT *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_RSA_DECRYPT orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_RSAES
+#if ALG_RSAES
 	  case TPM_ALG_RSAES:
 #endif
-#ifdef TPM_ALG_OAEP
+#if ALG_OAEP
 	  case TPM_ALG_OAEP:
 #endif
+	    // libtpms: allow decryption with these algorithms
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_VALUE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -3406,26 +3944,40 @@ TPM2B_PUBLIC_KEY_RSA_Unmarshal(TPM2B_PUBLIC_KEY_RSA *target, BYTE **buffer, INT3
     }
     return rc;
 }
-    
+
 /* Table 159 - Definition of {RSA} (TPM_KEY_BITS) TPMI_RSA_KEY_BITS Type */
 
 TPM_RC
 TPMI_RSA_KEY_BITS_Unmarshal(TPMI_RSA_KEY_BITS *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_RSA_KEY_BITS orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_KEY_BITS_Unmarshal(target, buffer, size);  
+	rc = TPM_KEY_BITS_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
 	  case 1024:
 	  case 2048:
+	  case 3072:
+#if RSA_4096										// libtpms added begin
+	  case 4096:
+#endif
+	    if (!RuntimeAlgorithmKeySizeCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm,
+						     TPM_ALG_RSA,
+						     *target,
+						     g_RuntimeProfile.stateFormatLevel)) {
+		rc = TPM_RC_VALUE;
+	    }										// libtpms added end
 	    break;
 	  default:
 	    rc = TPM_RC_VALUE;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
@@ -3437,11 +3989,11 @@ TPM2B_PRIVATE_KEY_RSA_Unmarshal(TPM2B_PRIVATE_KEY_RSA *target, BYTE **buffer, IN
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_Unmarshal(&target->b, MAX_RSA_KEY_BYTES/2, buffer, size);
+	rc = TPM2B_Unmarshal(&target->b, RSA_PRIVATE_SIZE, buffer, size);
     }
     return rc;
 }
- 
+
 /* Table 161 - Definition of {ECC} TPM2B_ECC_PARAMETER Structure */
 
 TPM_RC
@@ -3454,12 +4006,13 @@ TPM2B_ECC_PARAMETER_Unmarshal(TPM2B_ECC_PARAMETER *target, BYTE **buffer, INT32 
     }
     return rc;
 }
-    
+
 /* Table 162 - Definition of {ECC} TPMS_ECC_POINT Structure */
 
 TPM_RC
 TPMS_ECC_POINT_Unmarshal(TPMS_ECC_POINT *target, BYTE **buffer, INT32 *size)
 {
+    TPMS_ECC_POINT orig_target = *target;		// libtpms added
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
@@ -3468,6 +4021,9 @@ TPMS_ECC_POINT_Unmarshal(TPMS_ECC_POINT *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPM2B_ECC_PARAMETER_Unmarshal(&target->y, buffer, size);
     }
+    if (rc != TPM_RC_SUCCESS) {				// libtpms added being
+	*target = orig_target;
+    }							// libtpms added end
     return rc;
 }
 
@@ -3496,6 +4052,7 @@ TPM2B_ECC_POINT_Unmarshal(TPM2B_ECC_POINT *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->size != startSize - *size) {
 	    rc = TPM_RC_SIZE;
+	    target->size = 0; // libtpms added
 	}
     }
     return rc;
@@ -3507,65 +4064,62 @@ TPM_RC
 TPMI_ALG_ECC_SCHEME_Unmarshal(TPMI_ALG_ECC_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_ECC_SCHEME orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_ECDSA
+#if ALG_ECDSA
 	  case TPM_ALG_ECDSA:
 #endif
-#ifdef TPM_ALG_SM2
+#if ALG_SM2
 	  case TPM_ALG_SM2:
 #endif
-#ifdef TPM_ALG_ECDAA
+#if ALG_ECDAA
 	  case TPM_ALG_ECDAA:
 #endif
-#ifdef TPM_ALG_ECSCHNORR
+#if ALG_ECSCHNORR
 	  case TPM_ALG_ECSCHNORR:
 #endif
-#ifdef TPM_ALG_ECDH
+#if ALG_ECDH
 	  case TPM_ALG_ECDH:
 #endif
-#ifdef TPM_ALG_ECMQV
+#if ALG_ECMQV
 	  case TPM_ALG_ECMQV:
 #endif
+	    if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm, *target)) {	// libtpms added begin
+		rc = TPM_RC_SCHEME;
+	    }											// libtpms added end
 	    break;
 	  case TPM_ALG_NULL:
 	    if (allowNull) {
 		break;
 	    }
+	    /* fallthrough */
 	  default:
 	    rc = TPM_RC_SCHEME;
 	}
     }
+    if (rc != TPM_RC_SUCCESS) {	// libtpms added begin
+	*target = orig_target;
+    }				// libtpms added end
     return rc;
 }
 
 /* Table 165 - Definition of {ECC} (TPM_ECC_CURVE) TPMI_ECC_CURVE Type */
 
 TPM_RC
-TPMI_ECC_CURVE_Unmarshal(TPMI_ECC_CURVE *target, BYTE **buffer, INT32 *size)
+TPMI_ECC_CURVE_Unmarshal(TPMI_ECC_CURVE *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ECC_CURVE_Unmarshal(target, buffer, size);  
+	rc = TPM_ECC_CURVE_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
-	switch (*target) {
-#ifdef TPM_ECC_BN_P256
-	  case TPM_ECC_BN_P256:
-#endif
-#ifdef TPM_ECC_NIST_P256
-	  case TPM_ECC_NIST_P256:
-#endif
-#ifdef TPM_ECC_NIST_P384
-	  case TPM_ECC_NIST_P384:
-#endif
-	    break;
-	  default:
+	if ((*target == TPM_ECC_NONE) && !allowNull) {
 	    rc = TPM_RC_CURVE;
 	}
     }
@@ -3577,6 +4131,7 @@ TPMI_ECC_CURVE_Unmarshal(TPMI_ECC_CURVE *target, BYTE **buffer, INT32 *size)
 TPM_RC
 TPMT_ECC_SCHEME_Unmarshal(TPMT_ECC_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
+    TPMT_ECC_SCHEME orig_target = *target;		// libtpms added
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
@@ -3585,49 +4140,9 @@ TPMT_ECC_SCHEME_Unmarshal(TPMT_ECC_SCHEME *target, BYTE **buffer, INT32 *size, B
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMU_ASYM_SCHEME_Unmarshal(&target->details, buffer, size, target->scheme);
     }
-    return rc;
-}
-
-/* Table 167 - Definition of {ECC} TPMS_ALGORITHM_DETAIL_ECC Structure <OUT> */
-
-TPM_RC
-TPMS_ALGORITHM_DETAIL_ECC_Unmarshal(TPMS_ALGORITHM_DETAIL_ECC *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ECC_CURVE_Unmarshal(&target->curveID, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = UINT16_Unmarshal(&target->keySize, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMT_KDF_SCHEME_Unmarshal(&target->kdf, buffer, size, YES);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMT_ECC_SCHEME_Unmarshal(&target->sign, buffer, size, YES);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_ECC_PARAMETER_Unmarshal(&target->p, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_ECC_PARAMETER_Unmarshal(&target->a, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_ECC_PARAMETER_Unmarshal(&target->b, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_ECC_PARAMETER_Unmarshal(&target->gX, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_ECC_PARAMETER_Unmarshal(&target->gY, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_ECC_PARAMETER_Unmarshal(&target->n, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_ECC_PARAMETER_Unmarshal(&target->h, buffer, size);
-    }
+    if (rc != TPM_RC_SUCCESS) {				// libtpms added begin
+	*target = orig_target;
+    }							// libtpms added end
     return rc;
 }
 
@@ -3661,7 +4176,7 @@ TPMS_SIGNATURE_RSASSA_Unmarshal(TPMS_SIGNATURE_RSASSA *target, BYTE **buffer, IN
 }
 
 /* Table 169 - Definition of Types for {RSA} Signature */
-    
+
 TPM_RC
 TPMS_SIGNATURE_RSAPSS_Unmarshal(TPMS_SIGNATURE_RSAPSS *target, BYTE **buffer, INT32 *size)
 {
@@ -3679,7 +4194,7 @@ TPM_RC
 TPMS_SIGNATURE_ECC_Unmarshal(TPMS_SIGNATURE_ECC *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMI_ALG_HASH_Unmarshal(&target->hash, buffer, size, NO);
     }
@@ -3698,18 +4213,18 @@ TPM_RC
 TPMS_SIGNATURE_ECDSA_Unmarshal(TPMS_SIGNATURE_ECDSA *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-     
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMS_SIGNATURE_ECC_Unmarshal(target, buffer, size);
     }
     return rc;
 }
-    
+
 TPM_RC
 TPMS_SIGNATURE_ECDAA_Unmarshal(TPMS_SIGNATURE_ECDAA *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-     
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMS_SIGNATURE_ECC_Unmarshal(target, buffer, size);
     }
@@ -3720,7 +4235,7 @@ TPM_RC
 TPMS_SIGNATURE_SM2_Unmarshal(TPMS_SIGNATURE_SM2 *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-     
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMS_SIGNATURE_ECC_Unmarshal(target, buffer, size);
     }
@@ -3731,7 +4246,7 @@ TPM_RC
 TPMS_SIGNATURE_ECSCHNORR_Unmarshal(TPMS_SIGNATURE_ECSCHNORR *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-     
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMS_SIGNATURE_ECC_Unmarshal(target, buffer, size);
     }
@@ -3745,38 +4260,44 @@ TPMU_SIGNATURE_Unmarshal(TPMU_SIGNATURE *target, BYTE **buffer, INT32 *size, UIN
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
+    if (rc == TPM_RC_SUCCESS) {						// libtpms added begin
+	if (!RuntimeAlgorithmCheckEnabled(&g_RuntimeProfile.RuntimeAlgorithm, selector)) {
+	    return TPM_RC_SELECTOR;
+	}
+    }									// libtpms added end
+
     switch (selector) {
-#ifdef TPM_ALG_RSASSA
+#if ALG_RSASSA
       case TPM_ALG_RSASSA:
 	rc = TPMS_SIGNATURE_RSASSA_Unmarshal(&target->rsassa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_RSAPSS
+#if ALG_RSAPSS
       case TPM_ALG_RSAPSS:
 	rc = TPMS_SIGNATURE_RSAPSS_Unmarshal(&target->rsapss, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECDSA
+#if ALG_ECDSA
       case TPM_ALG_ECDSA:
 	rc = TPMS_SIGNATURE_ECDSA_Unmarshal(&target->ecdsa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECDAA
+#if ALG_ECDAA
       case TPM_ALG_ECDAA:
 	rc = TPMS_SIGNATURE_ECDAA_Unmarshal(&target->ecdaa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SM2
+#if ALG_SM2
       case TPM_ALG_SM2:
 	rc = TPMS_SIGNATURE_SM2_Unmarshal(&target->sm2, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECSCHNORR
+#if ALG_ECSCHNORR
       case TPM_ALG_ECSCHNORR:
 	rc = TPMS_SIGNATURE_ECSCHNORR_Unmarshal(&target->ecschnorr, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_HMAC
+#if ALG_HMAC
       case TPM_ALG_HMAC:
 	rc = TPMT_HA_Unmarshal(&target->hmac, buffer, size, NO);
 	break;
@@ -3824,32 +4345,34 @@ TPM_RC
 TPMI_ALG_PUBLIC_Unmarshal(TPMI_ALG_PUBLIC *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMI_ALG_PUBLIC orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);  
+	rc = TPM_ALG_ID_Unmarshal(target, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	switch (*target) {
-#ifdef TPM_ALG_KEYEDHASH
+#if ALG_KEYEDHASH
 	  case TPM_ALG_KEYEDHASH:
 #endif
-#ifdef TPM_ALG_RSA
+#if ALG_RSA
 	  case TPM_ALG_RSA:
 #endif
-#ifdef TPM_ALG_ECC
+#if ALG_ECC
 	  case TPM_ALG_ECC:
 #endif
-#ifdef TPM_ALG_SYMCIPHER
+#if ALG_SYMCIPHER
 	  case TPM_ALG_SYMCIPHER:
 #endif
 	    break;
 	  default:
 	    rc = TPM_RC_TYPE;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
 }
-    
+
 /* Table 177 - Definition of TPMU_PUBLIC_ID Union <IN/OUT, S> */
 
 TPM_RC
@@ -3858,22 +4381,22 @@ TPMU_PUBLIC_ID_Unmarshal(TPMU_PUBLIC_ID *target, BYTE **buffer, INT32 *size, UIN
     TPM_RC rc = TPM_RC_SUCCESS;
 
     switch (selector) {
-#ifdef TPM_ALG_KEYEDHASH
+#if ALG_KEYEDHASH
       case TPM_ALG_KEYEDHASH:
 	rc = TPM2B_DIGEST_Unmarshal(&target->keyedHash, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SYMCIPHER
+#if ALG_SYMCIPHER
       case TPM_ALG_SYMCIPHER:
 	rc = TPM2B_DIGEST_Unmarshal(&target->sym, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_RSA
-      case TPM_ALG_RSA: 
+#if ALG_RSA
+      case TPM_ALG_RSA:
 	rc = TPM2B_PUBLIC_KEY_RSA_Unmarshal(&target->rsa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECC
+#if ALG_ECC
       case TPM_ALG_ECC:
 	rc = TPMS_ECC_POINT_Unmarshal(&target->ecc, buffer, size);
 	break;
@@ -3890,30 +4413,12 @@ TPM_RC
 TPMS_KEYEDHASH_PARMS_Unmarshal(TPMS_KEYEDHASH_PARMS *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMT_KEYEDHASH_SCHEME_Unmarshal(&target->scheme, buffer, size, YES);
     }
     return rc;
 }
-
-/* Table 179 - Definition of TPMS_ASYM_PARMS Structure <> */
-
-#if 0
-TPM_RC
-TPMS_ASYM_PARMS_Unmarshal(TPMS_ASYM_PARMS *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-    
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMT_SYM_DEF_OBJECT_Unmarshal(&target->symmetric, buffer, size, YES);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMT_ASYM_SCHEME_Unmarshal(&target->scheme, buffer, size, YES);
-    }
-    return rc;
-}
-#endif
 
 /* Table 180 - Definition of {RSA} TPMS_RSA_PARMS Structure */
 
@@ -3921,7 +4426,7 @@ TPM_RC
 TPMS_RSA_PARMS_Unmarshal(TPMS_RSA_PARMS *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMT_SYM_DEF_OBJECT_Unmarshal(&target->symmetric, buffer, size, YES);
     }
@@ -3942,8 +4447,9 @@ TPMS_RSA_PARMS_Unmarshal(TPMS_RSA_PARMS *target, BYTE **buffer, INT32 *size)
 TPM_RC
 TPMS_ECC_PARMS_Unmarshal(TPMS_ECC_PARMS *target, BYTE **buffer, INT32 *size)
 {
+    TPMS_ECC_PARMS orig_target = *target;		// libtpms added
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMT_SYM_DEF_OBJECT_Unmarshal(&target->symmetric, buffer, size, YES);
     }
@@ -3951,11 +4457,14 @@ TPMS_ECC_PARMS_Unmarshal(TPMS_ECC_PARMS *target, BYTE **buffer, INT32 *size)
 	rc = TPMT_ECC_SCHEME_Unmarshal(&target->scheme, buffer, size, YES);
     }
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPMI_ECC_CURVE_Unmarshal(&target->curveID, buffer, size);
+	rc = TPMI_ECC_CURVE_Unmarshal(&target->curveID, buffer, size, NO);
     }
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMT_KDF_SCHEME_Unmarshal(&target->kdf, buffer, size, YES);
     }
+    if (rc != TPM_RC_SUCCESS) {				// libtpms added begin
+	*target = orig_target;
+    }							// libtpms added end
     return rc;
 }
 
@@ -3967,22 +4476,22 @@ TPMU_PUBLIC_PARMS_Unmarshal(TPMU_PUBLIC_PARMS *target, BYTE **buffer, INT32 *siz
     TPM_RC rc = TPM_RC_SUCCESS;
 
     switch (selector) {
-#ifdef TPM_ALG_KEYEDHASH
+#if ALG_KEYEDHASH
       case TPM_ALG_KEYEDHASH:
 	rc = TPMS_KEYEDHASH_PARMS_Unmarshal(&target->keyedHashDetail, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SYMCIPHER
+#if ALG_SYMCIPHER
       case TPM_ALG_SYMCIPHER:
 	rc = TPMS_SYMCIPHER_PARMS_Unmarshal(&target->symDetail, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_RSA
+#if ALG_RSA
       case TPM_ALG_RSA:
 	rc = TPMS_RSA_PARMS_Unmarshal(&target->rsaDetail, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECC
+#if ALG_ECC
       case TPM_ALG_ECC:
 	rc = TPMS_ECC_PARMS_Unmarshal(&target->eccDetail, buffer, size);
 	break;
@@ -4015,7 +4524,7 @@ TPM_RC
 TPMT_PUBLIC_Unmarshal(TPMT_PUBLIC *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMI_ALG_PUBLIC_Unmarshal(&target->type, buffer, size);
     }
@@ -4043,7 +4552,7 @@ TPM_RC
 TPM2B_PUBLIC_Unmarshal(TPM2B_PUBLIC *target, BYTE **buffer, INT32 *size, BOOL allowNull)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     INT32 startSize;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT16_Unmarshal(&target->size, buffer, size);
@@ -4062,6 +4571,7 @@ TPM2B_PUBLIC_Unmarshal(TPM2B_PUBLIC *target, BYTE **buffer, INT32 *size, BOOL al
     if (rc == TPM_RC_SUCCESS) {
 	if (target->size != startSize - *size) {
 	    rc = TPM_RC_SIZE;
+	    target->size = 0; // libtpms added
 	}
     }
     return rc;
@@ -4080,21 +4590,6 @@ TPM2B_TEMPLATE_Unmarshal(TPM2B_TEMPLATE *target, BYTE **buffer, INT32 *size)
     return rc;
 }
 
-/* Table 186 - Definition of TPM2B_PRIVATE_VENDOR_SPECIFIC Structure<> */
-
-#if 0
-TPM_RC
-TPM2B_PRIVATE_VENDOR_SPECIFIC_Unmarshal(TPM2B_PRIVATE_VENDOR_SPECIFIC *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_Unmarshal(&target->b, PRIVATE_VENDOR_SPECIFIC_BYTES, buffer, size);
-    }
-    return rc;
-}
-#endif
-    
 /* Table 187 - Definition of TPMU_SENSITIVE_COMPOSITE Union <IN/OUT, S> */
 
 TPM_RC
@@ -4103,22 +4598,22 @@ TPMU_SENSITIVE_COMPOSITE_Unmarshal(TPMU_SENSITIVE_COMPOSITE *target, BYTE **buff
     TPM_RC rc = TPM_RC_SUCCESS;
 
     switch (selector) {
-#ifdef TPM_ALG_RSA
+#if ALG_RSA
       case TPM_ALG_RSA:
 	rc = TPM2B_PRIVATE_KEY_RSA_Unmarshal(&target->rsa, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_ECC
+#if ALG_ECC
       case TPM_ALG_ECC:
 	rc = TPM2B_ECC_PARAMETER_Unmarshal(&target->ecc, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_KEYEDHASH
+#if ALG_KEYEDHASH
       case TPM_ALG_KEYEDHASH:
 	rc = TPM2B_SENSITIVE_DATA_Unmarshal(&target->bits, buffer, size);
 	break;
 #endif
-#ifdef TPM_ALG_SYMCIPHER
+#if ALG_SYMCIPHER
       case TPM_ALG_SYMCIPHER:
 	rc = TPM2B_SYM_KEY_Unmarshal(&target->sym, buffer, size);
 	break;
@@ -4157,7 +4652,7 @@ TPM_RC
 TPM2B_SENSITIVE_Unmarshal(TPM2B_SENSITIVE *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     INT32 startSize;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT16_Unmarshal(&target->size, buffer, size);
@@ -4172,6 +4667,7 @@ TPM2B_SENSITIVE_Unmarshal(TPM2B_SENSITIVE *target, BYTE **buffer, INT32 *size)
 	if (rc == TPM_RC_SUCCESS) {
 	    if (target->size != startSize - *size) {
 		rc = TPM_RC_SIZE;
+		target->size = 0; // libtpms added
 	    }
 	}
     }
@@ -4190,7 +4686,7 @@ TPM2B_PRIVATE_Unmarshal(TPM2B_PRIVATE *target, BYTE **buffer, INT32 *size)
     }
     return rc;
 }
-    
+
 /* Table 193 - Definition of TPM2B_ID_OBJECT Structure <IN/OUT> */
 
 TPM_RC
@@ -4210,13 +4706,15 @@ TPM_RC
 TPMA_NV_Unmarshal(TPMA_NV *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
+    TPMA_NV orig_target = *target; // libtpms added
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT32_Unmarshal((UINT32 *)target, buffer, size);  
+	rc = UINT32_Unmarshal((UINT32 *)target, buffer, size);  /* libtpms changed */
     }
     if (rc == TPM_RC_SUCCESS) {
 	if (*target & TPMA_NV_RESERVED) {
 	    rc = TPM_RC_RESERVED_BITS;
+	    *target = orig_target; // libtpms added
 	}
     }
     return rc;
@@ -4228,9 +4726,9 @@ TPM_RC
 TPMS_NV_PUBLIC_Unmarshal(TPMS_NV_PUBLIC *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPMI_RH_NV_INDEX_Unmarshal(&target->nvIndex, buffer, size, NO);
+	rc = TPMI_RH_NV_INDEX_Unmarshal(&target->nvIndex, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	rc = TPMI_ALG_HASH_Unmarshal(&target->nameAlg, buffer, size, NO);
@@ -4247,6 +4745,7 @@ TPMS_NV_PUBLIC_Unmarshal(TPMS_NV_PUBLIC *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->dataSize > MAX_NV_INDEX_SIZE) {
 	    rc = TPM_RC_SIZE;
+	    target->dataSize = 0; // libtpms added
 	}
     }
     return rc;
@@ -4258,7 +4757,7 @@ TPM_RC
 TPM2B_NV_PUBLIC_Unmarshal(TPM2B_NV_PUBLIC *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     INT32 startSize;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT16_Unmarshal(&target->size, buffer, size);
@@ -4277,113 +4776,105 @@ TPM2B_NV_PUBLIC_Unmarshal(TPM2B_NV_PUBLIC *target, BYTE **buffer, INT32 *size)
     if (rc == TPM_RC_SUCCESS) {
 	if (target->size != startSize - *size) {
 	    rc = TPM_RC_SIZE;
+	    target->size = 0; // libtpms added
 	}
     }
     return rc;
 }
 
-/* Table 199 - Definition of TPM2B_CONTEXT_SENSITIVE Structure <IN/OUT> */
+/* Table 226 - Definition of (UINT64) TPMA_NV_EXP Bits */
 
 TPM_RC
-TPM2B_CONTEXT_SENSITIVE_Unmarshal(TPM2B_CONTEXT_SENSITIVE *target, BYTE **buffer, INT32 *size)
+TPMA_NV_EXP_Unmarshal(TPMA_NV_EXP *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_Unmarshal(&target->b, MAX_CONTEXT_SIZE, buffer, size);
+	rc = UINT64_Unmarshal(target, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	if (*target & TPMA_NV_EXP_reserved) {
+	    rc = TPM_RC_RESERVED_BITS;
+	}
     }
     return rc;
 }
 
-/* Table 200 - Definition of TPMS_CONTEXT_DATA Structure <IN/OUT, S> */
+/* Table 229 - Definition of TPMS_NV_PUBLIC_EXP_ATTR Structure */
 
 TPM_RC
-TPMS_CONTEXT_DATA_Unmarshal(TPMS_CONTEXT_DATA *target, BYTE **buffer, INT32 *size)
+TPMS_NV_PUBLIC_EXP_ATTR_Unmarshal(TPMS_NV_PUBLIC_EXP_ATTR *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_DIGEST_Unmarshal(&target->integrity, buffer, size);	
+	rc = TPMI_RH_NV_EXP_INDEX_Unmarshal(&target->nvIndex, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_CONTEXT_SENSITIVE_Unmarshal(&target->encrypted, buffer, size);
+	rc = TPMI_ALG_HASH_Unmarshal(&target->nameAlg, buffer, size, NO);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPMA_NV_EXP_Unmarshal(&target->attributes, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM2B_DIGEST_Unmarshal(&target->authPolicy, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = UINT16_Unmarshal(&target->dataSize, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	if (target->dataSize > MAX_NV_INDEX_SIZE) {
+	    rc = TPM_RC_SIZE;
+	}
     }
     return rc;
 }
 
-/* Table 201 - Definition of TPM2B_CONTEXT_DATA Structure <IN/OUT> */
+/* Table 230 - Definition of TPMU_NV_PUBLIC_2 Union */
 
 TPM_RC
-TPM2B_CONTEXT_DATA_Unmarshal(TPM2B_CONTEXT_DATA *target, BYTE **buffer, INT32 *size)
+TPMU_NV_PUBLIC_2_Unmarshal( TPMU_NV_PUBLIC_2 *target, BYTE **buffer, INT32 *size, UINT8 selector)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_Unmarshal(&target->b, sizeof(TPMS_CONTEXT_DATA), buffer, size);
+
+    switch (selector) {
+      case TPM_HT_NV_INDEX:
+	rc = TPMS_NV_PUBLIC_Unmarshal(&target->nvIndex, buffer, size);
+	break;
+      case TPM_HT_EXTERNAL_NV:
+	rc = TPMS_NV_PUBLIC_EXP_ATTR_Unmarshal(&target->externalNV, buffer, size);
+	break;
+      case TPM_HT_PERMANENT_NV:
+	rc = TPMS_NV_PUBLIC_Unmarshal(&target->permanentNV, buffer, size);
+	break;
+      default:
+	rc = TPM_RC_SELECTOR;
     }
     return rc;
 }
 
-/* Table 202 - Definition of TPMS_CONTEXT Structure */
+/* Table 231 - Definition of TPMT_NV_PUBLIC_2 Structure */
 
 TPM_RC
-TPMS_CONTEXT_Unmarshal(TPMS_CONTEXT *target, BYTE **buffer, INT32 *size)
+TPMT_NV_PUBLIC_2_Unmarshal(TPMT_NV_PUBLIC_2 *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
-    
+
     if (rc == TPM_RC_SUCCESS) {
-	rc = UINT64_Unmarshal(&target->sequence, buffer, size);
+	rc = UINT8_Unmarshal(&target->handleType, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPMI_DH_CONTEXT_Unmarshal(&target->savedHandle, buffer, size, NO);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMI_RH_HIERARCHY_Unmarshal(&target->hierarchy, buffer, size, YES);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_CONTEXT_DATA_Unmarshal(&target->contextBlob, buffer, size);
+	rc = TPMU_NV_PUBLIC_2_Unmarshal(&target->nvPublic2, buffer, size, target->handleType);
     }
     return rc;
 }
 
-/* Table 204 - Definition of TPMS_CREATION_DATA Structure <OUT> */
-
+/* Table 232 - Definition of TPM2B_NV_PUBLIC_2 Structure */
 TPM_RC
-TPMS_CREATION_DATA_Unmarshal(TPMS_CREATION_DATA *target, BYTE **buffer, INT32 *size)
+TPM2B_NV_PUBLIC_2_Unmarshal(TPM2B_NV_PUBLIC_2 *target, BYTE **buffer, INT32 *size)
 {
     TPM_RC rc = TPM_RC_SUCCESS;
 
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPML_PCR_SELECTION_Unmarshal(&target->pcrSelect, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_DIGEST_Unmarshal(&target->pcrDigest, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPMA_LOCALITY_Unmarshal(&target->locality, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM_ALG_ID_Unmarshal(&target->parentNameAlg, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_NAME_Unmarshal(&target->parentName, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_NAME_Unmarshal(&target->parentQualifiedName, buffer, size);
-    }
-    if (rc == TPM_RC_SUCCESS) {
-	rc = TPM2B_DATA_Unmarshal(&target->outsideInfo, buffer, size);
-    }
-    return rc;
-}
-
-/* Table 205 - Definition of TPM2B_CREATION_DATA Structure <OUT> */
-
-TPM_RC
-TPM2B_CREATION_DATA_Unmarshal(TPM2B_CREATION_DATA *target, BYTE **buffer, INT32 *size)
-{
-    TPM_RC rc = TPM_RC_SUCCESS;
-    
     INT32 startSize;
     if (rc == TPM_RC_SUCCESS) {
 	rc = UINT16_Unmarshal(&target->size, buffer, size);
@@ -4397,7 +4888,7 @@ TPM2B_CREATION_DATA_Unmarshal(TPM2B_CREATION_DATA *target, BYTE **buffer, INT32 
 	startSize = *size;
     }
     if (rc == TPM_RC_SUCCESS) {
-	rc = TPMS_CREATION_DATA_Unmarshal(&target->creationData, buffer, size);
+	rc = TPMT_NV_PUBLIC_2_Unmarshal(&target->nvPublic2, buffer, size);
     }
     if (rc == TPM_RC_SUCCESS) {
 	if (target->size != startSize - *size) {
@@ -4406,4 +4897,151 @@ TPM2B_CREATION_DATA_Unmarshal(TPM2B_CREATION_DATA *target, BYTE **buffer, INT32 
     }
     return rc;
 }
+/* Table 199 - Definition of TPM2B_CONTEXT_SENSITIVE Structure <IN/OUT> */
 
+#if 0		// libtpms added
+TPM_RC
+TPM2B_CONTEXT_SENSITIVE_Unmarshal(TPM2B_CONTEXT_SENSITIVE *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM2B_Unmarshal(&target->b, MAX_CONTEXT_SIZE, buffer, size);
+    }
+    return rc;
+}
+#endif		// libtpms added
+
+/* Table 201 - Definition of TPM2B_CONTEXT_DATA Structure <IN/OUT> */
+
+TPM_RC
+TPM2B_CONTEXT_DATA_Unmarshal(TPM2B_CONTEXT_DATA *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM2B_Unmarshal(&target->b, sizeof(TPMS_CONTEXT_DATA), buffer, size);
+    }
+    return rc;
+}
+
+/* Table 202 - Definition of TPMS_CONTEXT Structure */
+
+TPM_RC
+TPMS_CONTEXT_Unmarshal(TPMS_CONTEXT *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+    INT32 orig_size = *size; // libtpms added
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = UINT64_Unmarshal(&target->sequence, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPMI_DH_SAVED_Unmarshal(&target->savedHandle, buffer, size, NO);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPMI_RH_HIERARCHY_Unmarshal(&target->hierarchy, buffer, size, YES);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM2B_CONTEXT_DATA_Unmarshal(&target->contextBlob, buffer, size);
+    }
+    // libtpms added begin
+    if (rc == TPM_RC_SUCCESS) {
+	if (*size > 0) {
+	    /* Windows 2019 server pads the command TPM_ContextLoad up to the value of
+	     * TPM_PT_MAX_OBJECT_CONTENT for the TPMS_CONTEXT part and we end up with
+	     * left-over padding bytes here that will make the TPM2_ContextLoad command
+	     * fail. This is because we don't just write an OBJECT as the context but use
+	     * ANY_OBJECT_Marshal to write it, which consumes less bytes. We had to do
+	     * this due to a Linux TPM resource manager bug that couldn't deal with the
+	     * larger context sizes once RSA 3072 was enabled and it ran out of memory
+	     * when receiving contexts.
+	     * Luckily only one command needs TPMS_CONTEXT unmarshalled, so we can adjust
+	     * for the left-over padding here but also ONLY do this if
+	     * 'orig_size' == value(TPM_PT_MAX_OBJECT_CONTENT).
+	     */
+	    static UINT32 tpm_pt_max_object_context;
+
+	    if (tpm_pt_max_object_context == 0) {
+		TPML_TAGGED_TPM_PROPERTY tttp;
+
+		TPMCapGetProperties(TPM_PT_MAX_OBJECT_CONTEXT, 1, &tttp);
+		if (tttp.count == 1)
+		    tpm_pt_max_object_context = tttp.tpmProperty[0].value;
+	    }
+	    if ((UINT32)orig_size == tpm_pt_max_object_context)
+		*size = 0; /* consume the padding bytes */
+	}
+    }
+    // libtpms added end
+    return rc;
+}
+
+/* Table 225 - Definition of (UINT32) TPM_AT Constants */
+
+TPM_RC
+TPM_AT_Unmarshal(TPM_AT *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = UINT32_Unmarshal(target, buffer, size);
+    }
+    return rc;
+}
+
+#if 0		// libtpms added
+TPM_RC
+TPMU_SET_CAPABILITIES_Unmarshal(TPMU_SET_CAPABILITIES *target, BYTE **buffer, INT32 *size, UINT32 selector)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    switch (selector) {
+      default:
+	rc = TPM_RC_SELECTOR;
+    }
+    return rc;
+}
+
+TPM_RC
+TPMS_SET_CAPABILITY_DATA_Unmarshal(TPMS_SET_CAPABILITY_DATA *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPM_CAP_Unmarshal(&target->setCapability, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPMU_SET_CAPABILITIES_Unmarshal(&target->data, buffer, size, target->setCapability);
+    }
+    return rc;
+}
+
+TPM_RC
+TPM2B_SET_CAPABILITY_DATA_Unmarshal(TPM2B_SET_CAPABILITY_DATA *target, BYTE **buffer, INT32 *size)
+{
+    TPM_RC rc = TPM_RC_SUCCESS;
+
+    INT32 startSize;
+    if (rc == TPM_RC_SUCCESS) {
+	rc = UINT16_Unmarshal(&target->size, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	if (target->size == 0) {
+	    rc = TPM_RC_SIZE;
+	}
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	startSize = *size;
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	rc = TPMS_SET_CAPABILITY_DATA_Unmarshal(&target->setCapabilityData, buffer, size);
+    }
+    if (rc == TPM_RC_SUCCESS) {
+	if (target->size != startSize - *size) {
+	    rc = TPM_RC_SIZE;
+	}
+    }
+    return rc;
+}
+#endif		// libtpms added

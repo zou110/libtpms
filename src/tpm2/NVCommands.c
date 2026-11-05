@@ -3,7 +3,6 @@
 /*			    Non-Volatile Storage 				*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: NVCommands.c 1047 2017-07-20 18:27:34Z kgoldman $		*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -55,167 +54,55 @@
 /*    arising in any way out of use or reliance upon this specification or any 	*/
 /*    information herein.							*/
 /*										*/
-/*  (c) Copyright IBM Corp. and others, 2016, 2017				*/
+/*  (c) Copyright IBM Corp. and others, 2016 - 2024				*/
 /*										*/
 /********************************************************************************/
 
 #include "Tpm.h"
 #include "NV_DefineSpace_fp.h"
-#ifdef TPM_CC_NV_DefineSpace  // Conditional expansion of this file
+
+#if CC_NV_DefineSpace  // Conditional expansion of this file
+
+/*(See part 3 specification)
+// Define a NV index space
+*/
+//  Return Type: TPM_RC
+//      TPM_RC_HIERARCHY            for authorizations using TPM_RH_PLATFORM
+//                                  phEnable_NV is clear preventing access to NV
+//                                  data in the platform hierarchy.
+//      TPM_RC_ATTRIBUTES           attributes of the index are not consistent
+//      TPM_RC_NV_DEFINED           index already exists
+//      TPM_RC_NV_SPACE             insufficient space for the index
+//      TPM_RC_SIZE                 'auth->size' or 'publicInfo->authPolicy.size' is
+//                                  larger than the digest size of
+//                                  'publicInfo->nameAlg'; or 'publicInfo->dataSize'
+//                                  is not consistent with 'publicInfo->attributes'
+//                                  (this includes the case when the index is
+//                                   larger than a MAX_NV_BUFFER_SIZE but the
+//                                   TPMA_NV_WRITEALL attribute is SET)
 TPM_RC
 TPM2_NV_DefineSpace(
 		    NV_DefineSpace_In   *in             // IN: input parameter list
 		    )
 {
-    TPMA_NV         attributes = in->publicInfo.nvPublic.attributes;
-    UINT16          nameSize;
-    nameSize = CryptHashGetDigestSize(in->publicInfo.nvPublic.nameAlg);
-    // Input Validation
-    // Checks not specific to type
-    // If the UndefineSpaceSpecial command is not implemented, then can't have
-    // an index that can only be deleted with policy
-#if CC_NV_UndefineSpaceSpecial == NO
-    if(IS_ATTRIBUTE(attributes, TPMA_NV, POLICY_DELETE))
-	return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-#endif
-    // check that the authPolicy consistent with hash algorithm
-    if(in->publicInfo.nvPublic.authPolicy.t.size != 0
-       && in->publicInfo.nvPublic.authPolicy.t.size != nameSize)
-	return TPM_RCS_SIZE + RC_NV_DefineSpace_publicInfo;
-    // make sure that the authValue is not too large
-    if(MemoryRemoveTrailingZeros(&in->auth)
-       > CryptHashGetDigestSize(in->publicInfo.nvPublic.nameAlg))
-	return TPM_RCS_SIZE + RC_NV_DefineSpace_auth;
-    // If an index is being created by the owner and shEnable is
-    // clear, then we would not reach this point because ownerAuth
-    // can't be given when shEnable is CLEAR. However, if phEnable
-    // is SET but phEnableNV is CLEAR, we have to check here
-    if(in->authHandle == TPM_RH_PLATFORM && gc.phEnableNV == CLEAR)
-	return TPM_RCS_HIERARCHY + RC_NV_DefineSpace_authHandle;
-    // Attribute checks
-    // Eliminate the unsupported types
-    switch(GET_TPM_NT(attributes))
-	{
-#if CC_NV_Increment == YES
-	  case TPM_NT_COUNTER:
-#endif
-#if CC_NV_SetBits == YES
-	  case TPM_NT_BITS:
-#endif
-#if CC_NV_Extend == YES
-	  case TPM_NT_EXTEND:
-#endif
-#if CC_PolicySecret == YES && defined TPM_NT_PIN_PASS
-	  case TPM_NT_PIN_PASS:
-	  case TPM_NT_PIN_FAIL:
-#endif
-	  case TPM_NT_ORDINARY:
-	    break;
-	  default:
-	    return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-	    break;
-	}
-    // Check that the sizes are OK based on the type
-    switch(GET_TPM_NT(attributes))
-	{
-	  case TPM_NT_ORDINARY:
-	    // Can't exceed the allowed size for the implementation
-	    if(in->publicInfo.nvPublic.dataSize > MAX_NV_INDEX_SIZE)
-		return TPM_RCS_SIZE + RC_NV_DefineSpace_publicInfo;
-	    break;
-	  case TPM_NT_EXTEND:
-	    if(in->publicInfo.nvPublic.dataSize != nameSize)
-		return TPM_RCS_SIZE + RC_NV_DefineSpace_publicInfo;
-	    break;
-	  default:
-	    // Everything else needs a size of 8
-	    if(in->publicInfo.nvPublic.dataSize != 8)
-		return TPM_RCS_SIZE + RC_NV_DefineSpace_publicInfo;
-	    break;
-	}
-    // Handle other specifics
-    switch(GET_TPM_NT(attributes))
-	{
-	  case TPM_NT_COUNTER:
-	    // Counter can't have TPMA_NV_CLEAR_STCLEAR SET (don't clear counters)
-	    if(IS_ATTRIBUTE(attributes, TPMA_NV, CLEAR_STCLEAR))
-		return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-	    break;
-#ifdef TPM_NT_PIN_FAIL
-	  case TPM_NT_PIN_FAIL:
-	    // NV_NO_DA must be SET and AUTHWRITE must be CLEAR
-	    // NOTE: As with a PIN_PASS index, the authValue of the index is not
-	    // available until the index is written. If AUTHWRITE is the only way to
-	    // write then index, it could never be written. Rather than go through
-	    // all of the other possible ways to write the Index, it is simply
-	    // prohibited to write the index with the authValue. Other checks
-	    // below will insure that there seems to be a way to write the index
-	    // (i.e., with platform authorization , owner authorization,
-	    // or with policyAuth.)
-	    // It is not allowed to create a PIN Index that can't be modified.
-	    if(!IS_ATTRIBUTE(attributes, TPMA_NV, NO_DA))
-		return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-#endif
-#ifdef TPM_NT_PIN_PASS
-	  case TPM_NT_PIN_PASS:
-	    // AUTHWRITE must be CLEAR (see note above to TPM_NT_PIN_FAIL)
-	    if(IS_ATTRIBUTE(attributes, TPMA_NV, AUTHWRITE)
-	       || IS_ATTRIBUTE(attributes, TPMA_NV, GLOBALLOCK)
-	       || IS_ATTRIBUTE(attributes, TPMA_NV, WRITEDEFINE))
-		return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-#endif  // this comes before break because PIN_FAIL falls through
-	    break;
-	  default:
-	    break;
-	}
-    // Locks may not be SET and written cannot be SET
-    if(IS_ATTRIBUTE(attributes, TPMA_NV, WRITTEN)
-       || IS_ATTRIBUTE(attributes, TPMA_NV, WRITELOCKED)
-       || IS_ATTRIBUTE(attributes, TPMA_NV, READLOCKED))
-	return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-    // There must be a way to read the index.
-    if(!IS_ATTRIBUTE(attributes, TPMA_NV, OWNERREAD)
-       && !IS_ATTRIBUTE(attributes, TPMA_NV, PPREAD)
-       && !IS_ATTRIBUTE(attributes, TPMA_NV, AUTHREAD)
-       && !IS_ATTRIBUTE(attributes, TPMA_NV, POLICYREAD))
-	return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-    // There must be a way to write the index
-    if(!IS_ATTRIBUTE(attributes, TPMA_NV, OWNERWRITE)
-       && !IS_ATTRIBUTE(attributes, TPMA_NV, PPWRITE)
-       && !IS_ATTRIBUTE(attributes, TPMA_NV, AUTHWRITE)
-       && !IS_ATTRIBUTE(attributes, TPMA_NV, POLICYWRITE))
-	return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-    // An index with TPMA_NV_CLEAR_STCLEAR can't have TPMA_NV_WRITEDEFINE SET
-    if(IS_ATTRIBUTE(attributes, TPMA_NV, CLEAR_STCLEAR)
-       &&  IS_ATTRIBUTE(attributes, TPMA_NV, WRITEDEFINE))
-	return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-    // Make sure that the creator of the index can delete the index
-    if((IS_ATTRIBUTE(attributes, TPMA_NV, PLATFORMCREATE)
-	&& in->authHandle == TPM_RH_OWNER)
-       || (!IS_ATTRIBUTE(attributes, TPMA_NV, PLATFORMCREATE)
-	   && in->authHandle == TPM_RH_PLATFORM))
-	return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_authHandle;
-    // If TPMA_NV_POLICY_DELETE is SET, then the index must be defined by
-    // the platform
-    if(IS_ATTRIBUTE(attributes, TPMA_NV, POLICY_DELETE)
-       &&  TPM_RH_PLATFORM != in->authHandle)
-	return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace_publicInfo;
-    // Make sure that the TPMA_NV_WRITEALL is not set if the index size is larger
-    // than the allowed NV buffer size.
-    if(in->publicInfo.nvPublic.dataSize > MAX_NV_BUFFER_SIZE
-       &&  IS_ATTRIBUTE(attributes, TPMA_NV, WRITEALL))
-	return TPM_RCS_SIZE + RC_NV_DefineSpace_publicInfo;
-    // And finally, see if the index is already defined.
-    if(NvIndexIsDefined(in->publicInfo.nvPublic.nvIndex))
-	return TPM_RC_NV_DEFINED;
-    // Internal Data Update
-    // define the space.  A TPM_RC_NV_SPACE error may be returned at this point
-    return NvDefineIndex(&in->publicInfo.nvPublic, &in->auth);
+    // This command only supports TPM_HT_NV_INDEX-typed NV indices.
+    if(HandleGetType(in->publicInfo.nvPublic.nvIndex) != TPM_HT_NV_INDEX)
+    {
+        return TPM_RCS_HANDLE + RC_NV_DefineSpace_publicInfo;
+    }
+
+    return NvDefineSpace(in->authHandle,
+                         &in->auth,
+                         &in->publicInfo.nvPublic,
+                         RC_NV_DefineSpace_authHandle,
+                         RC_NV_DefineSpace_auth,
+                         RC_NV_DefineSpace_publicInfo);
 }
+
 #endif // CC_NV_DefineSpace
 #include "Tpm.h"
 #include "NV_UndefineSpace_fp.h"
-#ifdef TPM_CC_NV_UndefineSpace  // Conditional expansion of this file
+#if CC_NV_UndefineSpace  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_UndefineSpace(
 		      NV_UndefineSpace_In     *in             // IN: input parameter list
@@ -240,7 +127,7 @@ TPM2_NV_UndefineSpace(
 #include "Tpm.h"
 #include "NV_UndefineSpaceSpecial_fp.h"
 #include "SessionProcess_fp.h"
-#ifdef TPM_CC_NV_UndefineSpaceSpecial  // Conditional expansion of this file
+#if CC_NV_UndefineSpaceSpecial  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_UndefineSpaceSpecial(
 			     NV_UndefineSpaceSpecial_In  *in             // IN: input parameter list
@@ -265,26 +152,8 @@ TPM2_NV_UndefineSpaceSpecial(
 }
 #endif // CC_NV_UndefineSpaceSpecial
 #include "Tpm.h"
-#include "NV_ReadPublic_fp.h"
-#ifdef TPM_CC_NV_ReadPublic  // Conditional expansion of this file
-TPM_RC
-TPM2_NV_ReadPublic(
-		   NV_ReadPublic_In    *in,            // IN: input parameter list
-		   NV_ReadPublic_Out   *out            // OUT: output parameter list
-		   )
-{
-    NV_INDEX        *nvIndex = NvGetIndexInfo(in->nvIndex, NULL);
-    // Command Output
-    // Copy index public data to output
-    out->nvPublic.nvPublic = nvIndex->publicArea;
-    // Compute NV name
-    NvGetIndexName(nvIndex, &out->nvName);
-    return TPM_RC_SUCCESS;
-}
-#endif // CC_NV_ReadPublic
-#include "Tpm.h"
 #include "NV_Write_fp.h"
-#ifdef TPM_CC_NV_Write  // Conditional expansion of this file
+#if CC_NV_Write  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_Write(
 	      NV_Write_In     *in             // IN: input parameter list
@@ -294,6 +163,12 @@ TPM2_NV_Write(
     TPMA_NV          attributes = nvIndex->publicArea.attributes;
     TPM_RC           result;
     // Input Validation
+
+    // Common Read-Only mode check. May return TPM_RC_READ_ONLY
+    result = NvReadOnlyModeChecks(attributes);
+    if(result != TPM_RC_SUCCESS)
+        return result;
+
     // Common access checks, NvWriteAccessCheck() may return TPM_RC_NV_AUTHORIZATION
     // or TPM_RC_NV_LOCKED
     result = NvWriteAccessChecks(in->authHandle,
@@ -330,7 +205,7 @@ TPM2_NV_Write(
 #endif // CC_NV_Write
 #include "Tpm.h"
 #include "NV_Increment_fp.h"
-#ifdef TPM_CC_NV_Increment  // Conditional expansion of this file
+#if CC_NV_Increment  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_Increment(
 		  NV_Increment_In     *in             // IN: input parameter list
@@ -381,7 +256,7 @@ TPM2_NV_Increment(
 #endif // CC_NV_Increment
 #include "Tpm.h"
 #include "NV_Extend_fp.h"
-#ifdef TPM_CC_NV_Extend  // Conditional expansion of this file
+#if CC_NV_Extend  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_Extend(
 	       NV_Extend_In    *in             // IN: input parameter list
@@ -394,6 +269,12 @@ TPM2_NV_Extend(
     TPM2B_DIGEST            newDigest;
     HASH_STATE              hashState;
     // Input Validation
+
+    // Common Read-Only mode check. May return TPM_RC_READ_ONLY
+    result = NvReadOnlyModeChecks(nvIndex->publicArea.attributes);
+    if(result != TPM_RC_SUCCESS)
+        return result;
+
     // Common access checks, NvWriteAccessCheck() may return TPM_RC_NV_AUTHORIZATION
     // or TPM_RC_NV_LOCKED
     result = NvWriteAccessChecks(in->authHandle,
@@ -431,7 +312,7 @@ TPM2_NV_Extend(
 #endif // CC_NV_Extend
 #include "Tpm.h"
 #include "NV_SetBits_fp.h"
-#ifdef TPM_CC_NV_SetBits  // Conditional expansion of this file
+#if CC_NV_SetBits  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_SetBits(
 		NV_SetBits_In   *in             // IN: input parameter list
@@ -443,6 +324,12 @@ TPM2_NV_SetBits(
     UINT64           oldValue;
     UINT64           newValue;
     // Input Validation
+
+    // Common Read-Only mode check. May return TPM_RC_READ_ONLY
+    result = NvReadOnlyModeChecks(nvIndex->publicArea.attributes);
+    if(result != TPM_RC_SUCCESS)
+        return result;
+
     // Common access checks, NvWriteAccessCheck() may return TPM_RC_NV_AUTHORIZATION
     // or TPM_RC_NV_LOCKED
     result = NvWriteAccessChecks(in->authHandle,
@@ -467,7 +354,7 @@ TPM2_NV_SetBits(
 #endif // CC_NV_SetBits
 #include "Tpm.h"
 #include "NV_WriteLock_fp.h"
-#ifdef TPM_CC_NV_WriteLock  // Conditional expansion of this file
+#if CC_NV_WriteLock  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_WriteLock(
 		  NV_WriteLock_In     *in             // IN: input parameter list
@@ -478,6 +365,12 @@ TPM2_NV_WriteLock(
     NV_INDEX        *nvIndex = NvGetIndexInfo(in->nvIndex, &locator);
     TPMA_NV          nvAttributes = nvIndex->publicArea.attributes;
     // Input Validation:
+
+    // Common Read-Only mode check. May return TPM_RC_READ_ONLY
+    result = NvReadOnlyModeChecks(nvIndex->publicArea.attributes);
+    if(result != TPM_RC_SUCCESS)
+        return result;
+
     // Common access checks, NvWriteAccessCheck() may return TPM_RC_NV_AUTHORIZATION
     // or TPM_RC_NV_LOCKED
     result = NvWriteAccessChecks(in->authHandle, in->nvIndex, nvAttributes);
@@ -506,7 +399,7 @@ TPM2_NV_WriteLock(
 #endif // CC_NV_WriteLock
 #include "Tpm.h"
 #include "NV_GlobalWriteLock_fp.h"
-#ifdef TPM_CC_NV_GlobalWriteLock  // Conditional expansion of this file
+#if CC_NV_GlobalWriteLock  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_GlobalWriteLock(
 			NV_GlobalWriteLock_In   *in             // IN: input parameter list
@@ -520,51 +413,8 @@ TPM2_NV_GlobalWriteLock(
 }
 #endif // CC_NV_GlobalWriteLock
 #include "Tpm.h"
-#include "NV_Read_fp.h"
-#ifdef TPM_CC_NV_Read  // Conditional expansion of this file
-/* TPM_RC_NV_AUTHORIZATION the authorization was valid but the authorizing entity (authHandle) is
-   not allowed to read from the Index referenced by nvIndex */
-/* TPM_RC_NV_LOCKED the Index referenced by nvIndex is read locked */
-/* TPM_RC_NV_RANGE read range defined by size and offset is outside the range of the Index
-   referenced by nvIndex */
-/* TPM_RC_NV_UNINITIALIZED the Index referenced by nvIndex has not been initialized (written) */
-/* TPM_RC_VALUE the read size is larger than the MAX_NV_BUFFER_SIZE */
-TPM_RC
-TPM2_NV_Read(
-	     NV_Read_In      *in,            // IN: input parameter list
-	     NV_Read_Out     *out            // OUT: output parameter list
-	     )
-{
-    NV_REF           locator;
-    NV_INDEX        *nvIndex = NvGetIndexInfo(in->nvIndex, &locator);
-    TPM_RC           result;
-    // Input Validation
-    // Common read access checks. NvReadAccessChecks() may return
-    // TPM_RC_NV_AUTHORIZATION, TPM_RC_NV_LOCKED, or TPM_RC_NV_UNINITIALIZED
-    result = NvReadAccessChecks(in->authHandle, in->nvIndex,
-				nvIndex->publicArea.attributes);
-    if(result != TPM_RC_SUCCESS)
-	return result;
-    // Make sure the data will fit the return buffer
-    if(in->size > MAX_NV_BUFFER_SIZE)
-	return TPM_RCS_VALUE + RC_NV_Read_size;
-    // Verify that the offset is not too large
-    if(in->offset > nvIndex->publicArea.dataSize)
-	return TPM_RCS_VALUE + RC_NV_Read_offset;
-    // Make sure that the selection is within the range of the Index
-    if(in->size > (nvIndex->publicArea.dataSize - in->offset))
-	return TPM_RC_NV_RANGE;
-    // Command Output
-    // Set the return size
-    out->data.t.size = in->size;
-    // Perform the read
-    NvGetIndexData(nvIndex, locator, in->offset, in->size, out->data.t.buffer);
-    return TPM_RC_SUCCESS;
-}
-#endif // CC_NV_Read
-#include "Tpm.h"
 #include "NV_ReadLock_fp.h"
-#ifdef TPM_CC_NV_ReadLock  // Conditional expansion of this file
+#if CC_NV_ReadLock  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_ReadLock(
 		 NV_ReadLock_In  *in             // IN: input parameter list
@@ -577,6 +427,12 @@ TPM2_NV_ReadLock(
     NV_INDEX        *nvIndex = NvGetIndexInfo(in->nvIndex, &locator);
     TPMA_NV          nvAttributes = nvIndex->publicArea.attributes;
     // Input Validation
+
+    // Common Read-Only mode check. May return TPM_RC_READ_ONLY
+    result = NvReadOnlyModeChecks(nvIndex->publicArea.attributes);
+    if(result != TPM_RC_SUCCESS)
+        return result;
+
     // Common read access checks. NvReadAccessChecks() may return
     // TPM_RC_NV_AUTHORIZATION, TPM_RC_NV_LOCKED, or TPM_RC_NV_UNINITIALIZED
     result = NvReadAccessChecks(in->authHandle,
@@ -603,7 +459,7 @@ TPM2_NV_ReadLock(
 #endif // CC_NV_ReadLock
 #include "Tpm.h"
 #include "NV_ChangeAuth_fp.h"
-#ifdef TPM_CC_NV_ChangeAuth  // Conditional expansion of this file
+#if CC_NV_ChangeAuth  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_ChangeAuth(
 		   NV_ChangeAuth_In    *in             // IN: input parameter list
@@ -625,7 +481,7 @@ TPM2_NV_ChangeAuth(
 #include "Tpm.h"
 #include "Attest_spt_fp.h"
 #include "NV_Certify_fp.h"
-#ifdef TPM_CC_NV_Certify  // Conditional expansion of this file
+#if CC_NV_Certify  // Conditional expansion of this file
 TPM_RC
 TPM2_NV_Certify(
 		NV_Certify_In   *in,            // IN: input parameter list
@@ -660,24 +516,117 @@ TPM2_NV_Certify(
     if(in->size > MAX_NV_BUFFER_SIZE)
 	return TPM_RCS_VALUE + RC_NV_Certify_size;
     // Command Output
+
     // Fill in attest information common fields
     FillInAttestInfo(in->signHandle, &in->inScheme, &in->qualifyingData,
 		     &certifyInfo);
-    // NV certify specific fields
-    // Attestation type
-    certifyInfo.type = TPM_ST_ATTEST_NV;
+
     // Get the name of the index
     NvGetIndexName(nvIndex, &certifyInfo.attested.nv.indexName);
-    // Set the return size
-    certifyInfo.attested.nv.nvContents.t.size = in->size;
-    // Set the offset
-    certifyInfo.attested.nv.offset = in->offset;
-    // Perform the read
-    NvGetIndexData(nvIndex, locator, in->offset, in->size,
-		   certifyInfo.attested.nv.nvContents.t.buffer);
+
+    // See if this is old format or new format
+    if ((in->size != 0) || (in->offset != 0))
+	{
+	    // NV certify specific fields
+	    // Attestation type
+	    certifyInfo.type = TPM_ST_ATTEST_NV;
+
+	    // Set the return size
+	    certifyInfo.attested.nv.nvContents.t.size = in->size;
+
+	    // Set the offset
+	    certifyInfo.attested.nv.offset = in->offset;
+
+	    // Perform the read
+	    NvGetIndexData(nvIndex, locator, in->offset, in->size,
+			   certifyInfo.attested.nv.nvContents.t.buffer);
+	}
+    else
+	{
+	    HASH_STATE                  hashState;
+	    // This is to sign a digest of the data
+	    certifyInfo.type = TPM_ST_ATTEST_NV_DIGEST;
+	    // Initialize the hash before calling the function to add the Index data to
+	    // the hash.
+	    certifyInfo.attested.nvDigest.nvDigest.t.size =
+		CryptHashStart(&hashState, in->inScheme.details.any.hashAlg);
+	    NvHashIndexData(&hashState, nvIndex, locator, 0,
+			    nvIndex->publicArea.dataSize);
+	    CryptHashEnd2B(&hashState, &certifyInfo.attested.nvDigest.nvDigest.b);
+	}
     // Sign attestation structure.  A NULL signature will be returned if
     // signObject is NULL.
     return SignAttestInfo(signObject, &in->inScheme, &certifyInfo,
 			  &in->qualifyingData, &out->certifyInfo, &out->signature);
 }
 #endif // CC_NV_Certify
+
+#include "Tpm.h"
+#include "NV_DefineSpace2_fp.h"
+
+#if CC_NV_DefineSpace2  // Conditional expansion of this file
+
+/*(See part 3 specification)
+// Define a NV index space
+*/
+//  Return Type: TPM_RC
+//      TPM_RC_HIERARCHY            for authorizations using TPM_RH_PLATFORM
+//                                  phEnable_NV is clear preventing access to NV
+//                                  data in the platform hierarchy.
+//      TPM_RC_ATTRIBUTES           attributes of the index are not consistent
+//      TPM_RC_NV_DEFINED           index already exists
+//      TPM_RC_NV_SPACE             insufficient space for the index
+//      TPM_RC_SIZE                 'auth->size' or 'publicInfo->authPolicy.size' is
+//                                  larger than the digest size of
+//                                  'publicInfo->nameAlg'; or 'publicInfo->dataSize'
+//                                  is not consistent with 'publicInfo->attributes'
+//                                  (this includes the case when the index is
+//                                   larger than a MAX_NV_BUFFER_SIZE but the
+//                                   TPMA_NV_WRITEALL attribute is SET)
+TPM_RC
+TPM2_NV_DefineSpace2(NV_DefineSpace2_In* in  // IN: input parameter list
+		     )
+{
+    TPM_RC         result;
+    TPMS_NV_PUBLIC legacyPublic;
+
+    // Input Validation
+
+    // Validate the handle type and the (handle-type-specific) attributes.
+    switch(in->publicInfo.nvPublic2.handleType)
+	{
+	  case TPM_HT_NV_INDEX:
+	    break;
+#  if EXTERNAL_NV
+	  case TPM_HT_EXTERNAL_NV:
+	    // The reference implementation may let you define an "external" NV
+	    // index, but it doesn't currently support setting any of the extended
+	    // bits for customizing the behavior of external NV.
+	    if((TPMA_NV_EXP_TO_UINT64(
+				      in->publicInfo.nvPublic2.nvPublic2.externalNV.attributes)
+		& 0xffffffff00000000)
+	       != 0)
+		{
+		    return TPM_RCS_ATTRIBUTES + RC_NV_DefineSpace2_publicInfo;
+		}
+	    break;
+#  endif
+	  default:
+	    return TPM_RCS_HANDLE + RC_NV_DefineSpace2_publicInfo;
+	}
+
+    result = NvPublicFromNvPublic2(&in->publicInfo.nvPublic2, &legacyPublic);
+    if(result != TPM_RC_SUCCESS)
+	{
+	    return RcSafeAddToResult(result, RC_NV_DefineSpace2_publicInfo);
+	}
+
+    return NvDefineSpace(in->authHandle,
+			 &in->auth,
+			 &legacyPublic,
+			 RC_NV_DefineSpace2_authHandle,
+			 RC_NV_DefineSpace2_auth,
+			 RC_NV_DefineSpace2_publicInfo);
+}
+
+#endif  // CC_NV_DefineSpace

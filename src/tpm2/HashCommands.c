@@ -1,9 +1,9 @@
 /********************************************************************************/
 /*										*/
-/*			     				*/
+/*			Hash/HMAC/Event Sequences	     			*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: HashCommands.c 1047 2017-07-20 18:27:34Z kgoldman $		*/
+/*            $Id: HashCommands.c 1490 2019-07-26 21:13:22Z kgoldman $		*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -55,13 +55,13 @@
 /*    arising in any way out of use or reliance upon this specification or any 	*/
 /*    information herein.							*/
 /*										*/
-/*  (c) Copyright IBM Corp. and others, 2016, 2017				*/
+/*  (c) Copyright IBM Corp. and others, 2016 - 2021				*/
 /*										*/
 /********************************************************************************/
 
 #include "Tpm.h"
 #include "HMAC_Start_fp.h"
-#ifdef TPM_CC_HMAC_Start  // Conditional expansion of this file
+#if CC_HMAC_Start  // Conditional expansion of this file
 TPM_RC
 TPM2_HMAC_Start(
 		HMAC_Start_In   *in,            // IN: input parameter list
@@ -74,17 +74,19 @@ TPM2_HMAC_Start(
     // Input Validation
     // Get HMAC key object and public area pointers
     keyObject = HandleToObject(in->handle);
+    pAssert_RC(keyObject != NULL);
+
     publicArea = &keyObject->publicArea;
+    pAssert_RC(publicArea != NULL);
+
     // Make sure that the key is an HMAC key
     if(publicArea->type != TPM_ALG_KEYEDHASH)
 	return TPM_RCS_TYPE + RC_HMAC_Start_handle;
     // and that it is unrestricted
     if (IS_ATTRIBUTE(publicArea->objectAttributes, TPMA_OBJECT, restricted))
-	//if(publicArea->objectAttributes.restricted == SET)	kgold
 	return TPM_RCS_ATTRIBUTES + RC_HMAC_Start_handle;
     // and that it is a signing key
     if (!IS_ATTRIBUTE(publicArea->objectAttributes, TPMA_OBJECT, sign))
-	// if(publicArea->objectAttributes.sign != SET)		kgold
 	return TPM_RCS_KEY + RC_HMAC_Start_handle;
     // See if the key has a default
     if(publicArea->parameters.keyedHashDetail.scheme.scheme == TPM_ALG_NULL)
@@ -113,7 +115,7 @@ TPM2_HMAC_Start(
 #endif // CC_HMAC_Start
 #include "Tpm.h"
 #include "MAC_Start_fp.h"
-#ifdef TPM_CC_MAC_Start  // Conditional expansion of this file
+#if CC_MAC_Start  // Conditional expansion of this file
 /* Error Returns Meaning */
 /* TPM_RC_ATTRIBUTES key referenced by handle is not a signing key or is restricted */
 /* TPM_RC_OBJECT_MEMORY no space to create an internal object */
@@ -132,7 +134,10 @@ TPM2_MAC_Start(
     // Input Validation
     // Get HMAC key object and public area pointers
     keyObject = HandleToObject(in->handle);
+    pAssert_RC(keyObject != NULL);
     publicArea = &keyObject->publicArea;
+    pAssert_RC(publicArea != NULL);
+
     // Make sure that the key can do what is required
     result = CryptSelectMac(publicArea, &in->inScheme);
     // If the key is not able to do a MAC, indicate that the handle selects an
@@ -160,7 +165,7 @@ TPM2_MAC_Start(
 #endif // CC_MAC_Start
 #include "Tpm.h"
 #include "HashSequenceStart_fp.h"
-#ifdef TPM_CC_HashSequenceStart  // Conditional expansion of this file
+#if CC_HashSequenceStart  // Conditional expansion of this file
 TPM_RC
 TPM2_HashSequenceStart(
 		       HashSequenceStart_In    *in,            // IN: input parameter list
@@ -179,7 +184,7 @@ TPM2_HashSequenceStart(
 #endif // CC_HashSequenceStart
 #include "Tpm.h"
 #include "SequenceUpdate_fp.h"
-#ifdef TPM_CC_SequenceUpdate  // Conditional expansion of this file
+#if CC_SequenceUpdate  // Conditional expansion of this file
 TPM_RC
 TPM2_SequenceUpdate(
 		    SequenceUpdate_In   *in             // IN: input parameter list
@@ -194,6 +199,8 @@ TPM2_SequenceUpdate(
     // Check that referenced object is a sequence object.
     if(!ObjectIsSequence(object))
 	return TPM_RCS_MODE + RC_SequenceUpdate_sequenceHandle;
+
+    pAssert_RC(object != NULL);
     // Internal Data Update
     if(object->attributes.eventSeq == SET)
 	{
@@ -236,7 +243,7 @@ TPM2_SequenceUpdate(
 #endif // CC_SequenceUpdate
 #include "Tpm.h"
 #include "SequenceComplete_fp.h"
-#ifdef TPM_CC_SequenceComplete  // Conditional expansion of this file
+#if CC_SequenceComplete  // Conditional expansion of this file
 /* Error Returns Meaning */
 /* TPM_RC_MODE sequenceHandle does not reference a hash or HMAC sequence object */
 TPM_RC
@@ -249,6 +256,8 @@ TPM2_SequenceComplete(
     // Input validation
     // Get hash object pointer
     hashObject = (HASH_OBJECT *)HandleToObject(in->sequenceHandle);
+    pAssert_RC(hashObject != NULL);
+
     // input handle must be a hash or HMAC sequence object.
     if(hashObject->attributes.hashSeq == CLEAR
        && hashObject->attributes.hmacSeq == CLEAR)
@@ -297,7 +306,7 @@ TPM2_SequenceComplete(
 	{
 	    //   Update last piece of data
 	    CryptDigestUpdate2B(&hashObject->state.hmacState.hashState, &in->buffer.b);
-#ifndef SMAC_IMPLEMENTED
+#if !SMAC_IMPLEMENTED
 	    // Complete HMAC
 	    out->result.t.size = CryptHmacEnd(&(hashObject->state.hmacState),
 					      sizeof(out->result.t.buffer),
@@ -321,7 +330,7 @@ TPM2_SequenceComplete(
 #endif // CC_SequenceComplete
 #include "Tpm.h"
 #include "EventSequenceComplete_fp.h"
-#ifdef TPM_CC_EventSequenceComplete  // Conditional expansion of this file
+#if CC_EventSequenceComplete  // Conditional expansion of this file
 TPM_RC
 TPM2_EventSequenceComplete(
 			   EventSequenceComplete_In    *in,            // IN: input parameter list
@@ -334,6 +343,8 @@ TPM2_EventSequenceComplete(
     // Input validation
     // get the event sequence object pointer
     hashObject = (HASH_OBJECT *)HandleToObject(in->sequenceHandle);
+    pAssert_RC(hashObject != NULL);
+
     // input handle must reference an event sequence object
     if(hashObject->attributes.eventSeq != SET)
 	return TPM_RCS_MODE + RC_EventSequenceComplete_sequenceHandle;

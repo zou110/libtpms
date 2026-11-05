@@ -1,62 +1,41 @@
+// SPDX-License-Identifier: BSD-2-Clause
+
 /********************************************************************************/
 /*										*/
-/*			     				*/
+/*			    Unmarshal Prototypes				*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: Unmarshal_fp.h 1047 2017-07-20 18:27:34Z kgoldman $		*/
 /*										*/
-/*  Licenses and Notices							*/
+/* (c) Copyright IBM Corporation 2015 - 2026					*/
 /*										*/
-/*  1. Copyright Licenses:							*/
-/*										*/
-/*  - Trusted Computing Group (TCG) grants to the user of the source code in	*/
-/*    this specification (the "Source Code") a worldwide, irrevocable, 		*/
-/*    nonexclusive, royalty free, copyright license to reproduce, create 	*/
-/*    derivative works, distribute, display and perform the Source Code and	*/
-/*    derivative works thereof, and to grant others the rights granted herein.	*/
-/*										*/
-/*  - The TCG grants to the user of the other parts of the specification 	*/
-/*    (other than the Source Code) the rights to reproduce, distribute, 	*/
-/*    display, and perform the specification solely for the purpose of 		*/
-/*    developing products based on such documents.				*/
-/*										*/
-/*  2. Source Code Distribution Conditions:					*/
-/*										*/
-/*  - Redistributions of Source Code must retain the above copyright licenses, 	*/
-/*    this list of conditions and the following disclaimers.			*/
-/*										*/
-/*  - Redistributions in binary form must reproduce the above copyright 	*/
-/*    licenses, this list of conditions	and the following disclaimers in the 	*/
-/*    documentation and/or other materials provided with the distribution.	*/
-/*										*/
-/*  3. Disclaimers:								*/
-/*										*/
-/*  - THE COPYRIGHT LICENSES SET FORTH ABOVE DO NOT REPRESENT ANY FORM OF	*/
-/*  LICENSE OR WAIVER, EXPRESS OR IMPLIED, BY ESTOPPEL OR OTHERWISE, WITH	*/
-/*  RESPECT TO PATENT RIGHTS HELD BY TCG MEMBERS (OR OTHER THIRD PARTIES)	*/
-/*  THAT MAY BE NECESSARY TO IMPLEMENT THIS SPECIFICATION OR OTHERWISE.		*/
-/*  Contact TCG Administration (admin@trustedcomputinggroup.org) for 		*/
-/*  information on specification licensing rights available through TCG 	*/
-/*  membership agreements.							*/
-/*										*/
-/*  - THIS SPECIFICATION IS PROVIDED "AS IS" WITH NO EXPRESS OR IMPLIED 	*/
-/*    WARRANTIES WHATSOEVER, INCLUDING ANY WARRANTY OF MERCHANTABILITY OR 	*/
-/*    FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, COMPLETENESS, OR 		*/
-/*    NONINFRINGEMENT OF INTELLECTUAL PROPERTY RIGHTS, OR ANY WARRANTY 		*/
-/*    OTHERWISE ARISING OUT OF ANY PROPOSAL, SPECIFICATION OR SAMPLE.		*/
-/*										*/
-/*  - Without limitation, TCG and its members and licensors disclaim all 	*/
-/*    liability, including liability for infringement of any proprietary 	*/
-/*    rights, relating to use of information in this specification and to the	*/
-/*    implementation of this specification, and TCG disclaims all liability for	*/
-/*    cost of procurement of substitute goods or services, lost profits, loss 	*/
-/*    of use, loss of data or any incidental, consequential, direct, indirect, 	*/
-/*    or special damages, whether under contract, tort, warranty or otherwise, 	*/
-/*    arising in any way out of use or reliance upon this specification or any 	*/
-/*    information herein.							*/
-/*										*/
-/*  (c) Copyright IBM Corp. and others, 2012-2015				*/
-/*										*/
+/* All rights reserved.								*/
+/* 										*/
+/* Redistribution and use in source and binary forms, with or without		*/
+/* modification, are permitted provided that the following conditions are	*/
+/* met:										*/
+/* 										*/
+/* Redistributions of source code must retain the above copyright notice,	*/
+/* this list of conditions and the following disclaimer.			*/
+/* 										*/
+/* Redistributions in binary form must reproduce the above copyright		*/
+/* notice, this list of conditions and the following disclaimer in the		*/
+/* documentation and/or other materials provided with the distribution.		*/
+/* 										*/
+/* Neither the names of the IBM Corporation nor the names of its		*/
+/* contributors may be used to endorse or promote products derived from		*/
+/* this software without specific prior written permission.			*/
+/* 										*/
+/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
+/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
+/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
+/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
+/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
+/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
+/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
+/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
+/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
+/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
+/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
 /********************************************************************************/
 
 /* rev 136 */
@@ -64,11 +43,8 @@
 #ifndef UNMARSHAL_FP_H
 #define UNMARSHAL_FP_H
 
-#ifndef TPM_TSS
-#include "TpmTypes.h"
-#else
-#include "TPM_Types.h"
-#endif
+#include "Tpm.h"
+#include <tpm_public/TpmTypes.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -83,8 +59,6 @@ extern "C" {
     LIB_EXPORT TPM_RC
     UINT32_Unmarshal(UINT32 *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    INT32_Unmarshal(INT32 *target, BYTE **buffer, INT32 *size);
-    LIB_EXPORT TPM_RC
     UINT64_Unmarshal(UINT64 *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     Array_Unmarshal(BYTE *targetBuffer, UINT16 targetSize, BYTE **buffer, INT32 *size);
@@ -92,16 +66,16 @@ extern "C" {
     TPM2B_Unmarshal(TPM2B *target, UINT16 targetSize, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPM_KEY_BITS_Unmarshal(TPM_KEY_BITS *target, BYTE **buffer, INT32 *size);
+#if 0
     LIB_EXPORT TPM_RC
     TPM_GENERATED_Unmarshal(TPM_GENERATED *target, BYTE **buffer, INT32 *size);
+#endif
     LIB_EXPORT TPM_RC
     TPM_ALG_ID_Unmarshal(TPM_ALG_ID *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPM_ECC_CURVE_Unmarshal(TPM_ECC_CURVE *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPM_CC_Unmarshal(TPM_RC *target, BYTE **buffer, INT32 *size);
-    LIB_EXPORT TPM_RC
-    TPM_RC_Unmarshal(TPM_RC *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPM_CLOCK_ADJUST_Unmarshal(TPM_CLOCK_ADJUST *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
@@ -145,31 +119,47 @@ extern "C" {
     LIB_EXPORT TPM_RC
     TPMI_SH_AUTH_SESSION_Unmarshal(TPMI_SH_AUTH_SESSION *target, BYTE **buffer, INT32 *size, BOOL allowPwd);
     LIB_EXPORT TPM_RC
-    TPMI_SH_HMAC_Unmarshal(TPMI_SH_HMAC *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_SH_HMAC_Unmarshal(TPMI_SH_HMAC *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMI_SH_POLICY_Unmarshal(TPMI_SH_POLICY *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_SH_POLICY_Unmarshal(TPMI_SH_POLICY *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMI_DH_CONTEXT_Unmarshal(TPMI_DH_CONTEXT *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_DH_CONTEXT_Unmarshal(TPMI_DH_CONTEXT *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMI_DH_SAVED_Unmarshal(TPMI_DH_SAVED *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
     TPMI_RH_HIERARCHY_Unmarshal(TPMI_RH_HIERARCHY *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
     TPMI_RH_ENABLES_Unmarshal(TPMI_RH_ENABLES *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
-    TPMI_RH_HIERARCHY_AUTH_Unmarshal(TPMI_RH_HIERARCHY_AUTH *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_RH_HIERARCHY_AUTH_Unmarshal(TPMI_RH_HIERARCHY_AUTH *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMI_RH_PLATFORM_Unmarshal(TPMI_RH_PLATFORM *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_RH_HIERARCHY_POLICY_Unmarshal(TPMI_RH_HIERARCHY_POLICY *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMI_RH_PLATFORM_Unmarshal(TPMI_RH_PLATFORM *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMI_RH_ENDORSEMENT_Unmarshal(TPMI_RH_ENDORSEMENT *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
-    TPMI_RH_PROVISION_Unmarshal(TPMI_RH_PROVISION *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_RH_PROVISION_Unmarshal(TPMI_RH_PROVISION *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMI_RH_CLEAR_Unmarshal(TPMI_RH_CLEAR *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_RH_CLEAR_Unmarshal(TPMI_RH_CLEAR *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMI_RH_NV_AUTH_Unmarshal(TPMI_RH_NV_AUTH *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_RH_NV_AUTH_Unmarshal(TPMI_RH_NV_AUTH *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMI_RH_LOCKOUT_Unmarshal(TPMI_RH_LOCKOUT *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_RH_LOCKOUT_Unmarshal(TPMI_RH_LOCKOUT *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMI_RH_NV_INDEX_Unmarshal(TPMI_RH_NV_INDEX *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+    TPMI_RH_NV_INDEX_Unmarshal(TPMI_RH_NV_INDEX *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMI_RH_NV_DEFINED_INDEX_Unmarshal(TPMI_RH_NV_DEFINED_INDEX *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMI_RH_NV_LEGACY_INDEX_Unmarshal(TPMI_RH_NV_LEGACY_INDEX *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMI_RH_NV_EXP_INDEX_Unmarshal(TPMI_RH_NV_EXP_INDEX *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMI_RH_NV_INDEX_Unmarshal(TPMI_RH_NV_EXP_INDEX *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMI_RH_AC_Unmarshal(TPMI_RH_AC *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMI_RH_ACT_Unmarshal(TPMI_RH_ACT *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMI_ALG_HASH_Unmarshal(TPMI_ALG_HASH *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
@@ -204,8 +194,6 @@ extern "C" {
     TPM2B_NONCE_Unmarshal(TPM2B_NONCE *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPM2B_AUTH_Unmarshal(TPM2B_AUTH *target, BYTE **buffer, INT32 *size);
-    LIB_EXPORT TPM_RC
-    TPM2B_OPERAND_Unmarshal(TPM2B_OPERAND *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPM2B_EVENT_Unmarshal(TPM2B_EVENT *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
@@ -245,15 +233,12 @@ extern "C" {
     LIB_EXPORT TPM_RC
     TPML_HANDLE_Unmarshal(TPML_HANDLE *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPML_DIGEST_Unmarshal(TPML_DIGEST *target, BYTE **buffer, INT32 *size
-#ifdef TPM_TSS
-			  ,uint32_t minCount
-#endif
-			  );
+    TPML_DIGEST_Unmarshal(TPML_DIGEST *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPML_DIGEST_VALUES_Unmarshal(TPML_DIGEST_VALUES *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPML_PCR_SELECTION_Unmarshal(TPML_PCR_SELECTION *target, BYTE **buffer, INT32 *size);
+#if 0 /* libtpms added */
     LIB_EXPORT TPM_RC
     TPML_ALG_PROPERTY_Unmarshal(TPML_ALG_PROPERTY *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
@@ -294,10 +279,19 @@ extern "C" {
     TPM2B_ATTEST_Unmarshal(TPM2B_ATTEST *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMS_CAPABILITY_DATA_Unmarshal(TPMS_CAPABILITY_DATA *target, BYTE **buffer, INT32 *size);
+#endif /* libtpms added */
     LIB_EXPORT TPM_RC
-    TPMS_AUTH_RESPONSE_Unmarshal(TPMS_AUTH_RESPONSE *target, BYTE **buffer, INT32 *size);
+    TPMU_SET_CAPABILITIES_Unmarshal(TPMU_SET_CAPABILITIES *target, BYTE **buffer, INT32 *size, UINT32 selector);
+    LIB_EXPORT TPM_RC
+    TPMS_SET_CAPABILITY_DATA_Unmarshal(TPMS_SET_CAPABILITY_DATA *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPM2B_SET_CAPABILITY_DATA_Unmarshal(TPM2B_SET_CAPABILITY_DATA *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMI_AES_KEY_BITS_Unmarshal(TPMI_AES_KEY_BITS *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMI_CAMELLIA_KEY_BITS_Unmarshal(TPMI_CAMELLIA_KEY_BITS *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC /* libtpms added */
+    TPMI_TDES_KEY_BITS_Unmarshal(TPMI_TDES_KEY_BITS *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMU_SYM_KEY_BITS_Unmarshal(TPMU_SYM_KEY_BITS *target, BYTE **buffer, INT32 *size, UINT32 selector);
     LIB_EXPORT TPM_RC
@@ -314,8 +308,6 @@ extern "C" {
     TPM2B_LABEL_Unmarshal(TPM2B_LABEL *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMS_DERIVE_Unmarshal(TPMS_DERIVE *target, BYTE **buffer, INT32 *size);
-    LIB_EXPORT TPM_RC
-    TPM2B_DERIVE_Unmarshal(TPM2B_DERIVE *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPM2B_SENSITIVE_DATA_Unmarshal(TPM2B_SENSITIVE_DATA *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
@@ -361,23 +353,23 @@ extern "C" {
     LIB_EXPORT TPM_RC
     TPMS_KEY_SCHEME_ECMQV_Unmarshal(TPMS_KEY_SCHEME_ECMQV *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMS_SCHEME_KDF1_SP800_108_Unmarshal(TPMS_SCHEME_KDF1_SP800_108 *target, BYTE **buffer, INT32 *size);
+    TPMS_KDF_SCHEME_KDF1_SP800_108_Unmarshal(TPMS_KDF_SCHEME_KDF1_SP800_108 *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMS_SCHEME_KDF1_SP800_56A_Unmarshal(TPMS_SCHEME_KDF1_SP800_56A *target, BYTE **buffer, INT32 *size);
+    TPMS_KDF_SCHEME_KDF1_SP800_56A_Unmarshal(TPMS_KDF_SCHEME_KDF1_SP800_56A *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMS_SCHEME_KDF2_Unmarshal(TPMS_SCHEME_KDF2 *target, BYTE **buffer, INT32 *size);
+    TPMS_KDF_SCHEME_KDF2_Unmarshal(TPMS_KDF_SCHEME_KDF2 *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMS_SCHEME_MGF1_Unmarshal(TPMS_SCHEME_MGF1 *target, BYTE **buffer, INT32 *size);
+    TPMS_KDF_SCHEME_MGF1_Unmarshal(TPMS_KDF_SCHEME_MGF1 *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMU_KDF_SCHEME_Unmarshal(TPMU_KDF_SCHEME *target, BYTE **buffer, INT32 *size, UINT32 selector);
     LIB_EXPORT TPM_RC
     TPMT_KDF_SCHEME_Unmarshal(TPMT_KDF_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+#if 0 /* libtpms added */
     LIB_EXPORT TPM_RC
     TPMI_ALG_ASYM_SCHEME_Unmarshal(TPMI_ALG_ASYM_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull);
+#endif /* libtpms added */
     LIB_EXPORT TPM_RC
     TPMU_ASYM_SCHEME_Unmarshal(TPMU_ASYM_SCHEME *target, BYTE **buffer, INT32 *size, UINT32 selector);
-    LIB_EXPORT TPM_RC
-    TPMT_ASYM_SCHEME_Unmarshal(TPMT_ASYM_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
     TPMI_ALG_RSA_SCHEME_Unmarshal(TPMI_ALG_RSA_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
@@ -401,11 +393,9 @@ extern "C" {
     LIB_EXPORT TPM_RC
     TPMI_ALG_ECC_SCHEME_Unmarshal(TPMI_ALG_ECC_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
-    TPMI_ECC_CURVE_Unmarshal(TPMI_ECC_CURVE *target, BYTE **buffer, INT32 *size);
+    TPMI_ECC_CURVE_Unmarshal(TPMI_ECC_CURVE *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
     TPMT_ECC_SCHEME_Unmarshal(TPMT_ECC_SCHEME *target, BYTE **buffer, INT32 *size, BOOL allowNull);
-    LIB_EXPORT TPM_RC
-    TPMS_ALGORITHM_DETAIL_ECC_Unmarshal(TPMS_ALGORITHM_DETAIL_ECC *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMS_SIGNATURE_RSA_Unmarshal(TPMS_SIGNATURE_RSA *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
@@ -435,8 +425,6 @@ extern "C" {
     LIB_EXPORT TPM_RC
     TPMS_KEYEDHASH_PARMS_Unmarshal(TPMS_KEYEDHASH_PARMS *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMS_ASYM_PARMS_Unmarshal(TPMS_ASYM_PARMS *target, BYTE **buffer, INT32 *size);
-    LIB_EXPORT TPM_RC
     TPMS_RSA_PARMS_Unmarshal(TPMS_RSA_PARMS *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMS_ECC_PARMS_Unmarshal(TPMS_ECC_PARMS *target, BYTE **buffer, INT32 *size);
@@ -450,8 +438,6 @@ extern "C" {
     TPM2B_PUBLIC_Unmarshal(TPM2B_PUBLIC *target, BYTE **buffer, INT32 *size, BOOL allowNull);
     LIB_EXPORT TPM_RC
     TPM2B_TEMPLATE_Unmarshal(TPM2B_TEMPLATE *target, BYTE **buffer, INT32 *size);
-    LIB_EXPORT TPM_RC
-    TPM2B_PRIVATE_VENDOR_SPECIFIC_Unmarshal(TPM2B_PRIVATE_VENDOR_SPECIFIC *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMU_SENSITIVE_COMPOSITE_Unmarshal(TPMU_SENSITIVE_COMPOSITE *target, BYTE **buffer, INT32 *size, UINT32 selector);
     LIB_EXPORT TPM_RC
@@ -467,20 +453,26 @@ extern "C" {
     LIB_EXPORT TPM_RC
     TPMS_NV_PUBLIC_Unmarshal(TPMS_NV_PUBLIC *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
+    TPMA_NV_EXP_Unmarshal(TPMA_NV_EXP *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMS_NV_PUBLIC_EXP_ATTR_Unmarshal(TPMS_NV_PUBLIC_EXP_ATTR *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
+    TPMU_NV_PUBLIC_2_Unmarshal( TPMU_NV_PUBLIC_2 *target, BYTE **buffer, INT32 *size, UINT8 selector);
+    LIB_EXPORT TPM_RC
+    TPMT_NV_PUBLIC_2_Unmarshal(TPMT_NV_PUBLIC_2 *target, BYTE **buffer, INT32 *size);
+    LIB_EXPORT TPM_RC
     TPM2B_NV_PUBLIC_Unmarshal(TPM2B_NV_PUBLIC *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPM2B_CONTEXT_SENSITIVE_Unmarshal(TPM2B_CONTEXT_SENSITIVE *target, BYTE **buffer, INT32 *size);
+    TPM2B_NV_PUBLIC_2_Unmarshal(TPM2B_NV_PUBLIC_2 *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMS_CONTEXT_DATA_Unmarshal(TPMS_CONTEXT_DATA *target, BYTE **buffer, INT32 *size);
+    TPM2B_CONTEXT_SENSITIVE_Unmarshal(TPM2B_CONTEXT_SENSITIVE *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPM2B_CONTEXT_DATA_Unmarshal(TPM2B_CONTEXT_DATA *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
     TPMS_CONTEXT_Unmarshal(TPMS_CONTEXT *target, BYTE **buffer, INT32 *size);
     LIB_EXPORT TPM_RC
-    TPMS_CREATION_DATA_Unmarshal(TPMS_CREATION_DATA *target, BYTE **buffer, INT32 *size);
-    LIB_EXPORT TPM_RC
-    TPM2B_CREATION_DATA_Unmarshal(TPM2B_CREATION_DATA *target, BYTE **buffer, INT32 *size);
-    
+    TPM_AT_Unmarshal(TPM_AT *target, BYTE **buffer, INT32 *size);
+
 #ifdef __cplusplus
 }
 #endif

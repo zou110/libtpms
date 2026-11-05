@@ -1,9 +1,9 @@
 /********************************************************************************/
 /*										*/
-/*			     				*/
+/*			Miscellaneous Management Functions	   		*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: ManagementCommands.c 809 2016-11-16 18:31:54Z kgoldman $			*/
+/*            $Id: ManagementCommands.c 1490 2019-07-26 21:13:22Z kgoldman $	*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -55,13 +55,13 @@
 /*    arising in any way out of use or reliance upon this specification or any 	*/
 /*    information herein.							*/
 /*										*/
-/*  (c) Copyright IBM Corp. and others, 2016					*/
+/*  (c) Copyright IBM Corp. and others, 2016 - 2021				*/
 /*										*/
 /********************************************************************************/
 
 #include "Tpm.h"
 #include "PP_Commands_fp.h"
-#ifdef TPM_CC_PP_Commands  // Conditional expansion of this file
+#if CC_PP_Commands  // Conditional expansion of this file
 TPM_RC
 TPM2_PP_Commands(
 		 PP_Commands_In  *in             // IN: input parameter list
@@ -94,7 +94,7 @@ TPM2_PP_Commands(
 #endif // CC_PP_Commands
 #include "Tpm.h"
 #include "SetAlgorithmSet_fp.h"
-#ifdef TPM_CC_SetAlgorithmSet  // Conditional expansion of this file
+#if CC_SetAlgorithmSet  // Conditional expansion of this file
 TPM_RC
 TPM2_SetAlgorithmSet(
 		     SetAlgorithmSet_In  *in             // IN: input parameter list

@@ -143,12 +143,6 @@
   TPM buffer limits
 */
 
-/* This value is used to limit memory allocation to prevent resource overload. */
-
-#ifndef TPM_ALLOC_MAX
-#define TPM_ALLOC_MAX  0x20000  /* 128k bytes */
-#endif
-
 /* This is the increment by which the TPM_STORE_BUFFER grows.  A larger number saves realloc's.  A
    smaller number saves memory.
 
@@ -847,7 +841,7 @@
                                               indicates that the asymmetric algorithm is not
                                               supported for these types of commands. The TPM MAY
                                               return TRUE or FALSE for other than asymmetric
-                                              algoroithms that it supports. Unassigned and
+                                              algorithms that it supports. Unassigned and
                                               unsupported algorithm IDs return FALSE.*/
 
 #define TPM_CAP_PID             0x00000003 /* Boolean value. TRUE indicates that the TPM supports

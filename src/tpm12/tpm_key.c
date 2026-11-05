@@ -1465,6 +1465,7 @@ void TPM_KeyParms_Init(TPM_KEY_PARMS *tpm_key_parms)
     return;
 }
 
+#if 0
 /* TPM_KeyParms_SetRSA() is a 'Set' version specific to RSA keys */
 
 TPM_RESULT TPM_KeyParms_SetRSA(TPM_KEY_PARMS *tpm_key_parms,
@@ -1499,6 +1500,7 @@ TPM_RESULT TPM_KeyParms_SetRSA(TPM_KEY_PARMS *tpm_key_parms,
     }
     return rc;
 }
+#endif
 
 
 /* TPM_KeyParms_Copy() copies the source to the destination.
@@ -1730,7 +1732,7 @@ TPM_RESULT TPM_KeyParms_CheckProperties(TPM_KEY_PARMS *tpm_key_parms,
 					TPM_BOOL FIPS)
 {
     TPM_RESULT	rc = 0;
-    TPM_RSA_KEY_PARMS *tpm_rsa_key_parms;	/* used if algorithmID indicates RSA */
+    TPM_RSA_KEY_PARMS *tpm_rsa_key_parms = NULL;/* used if algorithmID indicates RSA */
 
     printf("  TPM_KeyParms_CheckProperties: keyUsage %04hx\n", tpm_key_usage);
     printf("  TPM_KeyParms_CheckProperties: sigScheme %04hx\n", tpm_key_parms->sigScheme);
@@ -2453,8 +2455,9 @@ TPM_RESULT TPM_StoreAsymkey_LoadO1(TPM_STORE_ASYMKEY	*tpm_store_asymkey,	/* outp
 	rc = TPM_MigrateAsymkey_Load(&tpm_migrate_asymkey, &stream, &stream_size);
 	printf("  TPM_StoreAsymkey_LoadO1: partPrivKey length %u\n",
 	       tpm_migrate_asymkey.partPrivKey.size);
-	TPM_PrintFour("  TPM_StoreAsymkey_LoadO1: partPrivKey -",
-		      tpm_migrate_asymkey.partPrivKey.buffer);
+	TPM_PrintFourLimit("  TPM_StoreAsymkey_LoadO1: partPrivKey -",
+		      tpm_migrate_asymkey.partPrivKey.buffer,
+		      tpm_migrate_asymkey.partPrivKey.size);
     }
     /* create k1k2 by combining seed (k1) and TPM_MIGRATE_ASYMKEY.partPrivKey (k2) field */
     if (rc == 0) {
@@ -2473,7 +2476,7 @@ TPM_RESULT TPM_StoreAsymkey_LoadO1(TPM_STORE_ASYMKEY	*tpm_store_asymkey,	/* outp
 	TPM_Digest_Copy(tpm_store_asymkey->pubDataDigest, tpm_migrate_asymkey.pubDataDigest);
 	TPM_Sbuffer_Get(&k1k2_sbuffer, &k1k2_buffer, &k1k2_length);
 	printf("  TPM_StoreAsymkey_LoadO1: k1k2 length %u\n", k1k2_length);
-	TPM_PrintFour("  TPM_StoreAsymkey_LoadO1: k1k2", k1k2_buffer);
+	TPM_PrintFourLimit("  TPM_StoreAsymkey_LoadO1: k1k2", k1k2_buffer, k1k2_length);
 	rc = TPM_SizedBuffer_Load(&(tpm_store_asymkey->privKey.p_key),
 				  (unsigned char **)&k1k2_buffer, &k1k2_length);
     }

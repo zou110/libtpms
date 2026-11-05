@@ -3,7 +3,7 @@
 /*			     	Session Commands				*/
 /*			     Written by Ken Goldman				*/
 /*		       IBM Thomas J. Watson Research Center			*/
-/*            $Id: SessionCommands.c 1047 2017-07-20 18:27:34Z kgoldman $	*/
+/*            $Id: SessionCommands.c 1519 2019-11-15 20:43:51Z kgoldman $	*/
 /*										*/
 /*  Licenses and Notices							*/
 /*										*/
@@ -55,13 +55,13 @@
 /*    arising in any way out of use or reliance upon this specification or any 	*/
 /*    information herein.							*/
 /*										*/
-/*  (c) Copyright IBM Corp. and others, 2016, 2017				*/
+/*  (c) Copyright IBM Corp. and others, 2016 - 2019				*/
 /*										*/
 /********************************************************************************/
 
 #include "Tpm.h"
 #include "StartAuthSession_fp.h"
-#ifdef TPM_CC_StartAuthSession  // Conditional expansion of this file
+#if CC_StartAuthSession  // Conditional expansion of this file
 TPM_RC
 TPM2_StartAuthSession(
 		      StartAuthSession_In     *in,            // IN: input parameter buffer
@@ -82,6 +82,7 @@ TPM2_StartAuthSession(
 	{
 	    // Get pointer to loaded decrypt key
 	    tpmKey = HandleToObject(in->tpmKey);
+	    pAssert_RC(tpmKey != NULL);
 	    // key must be asymmetric with its sensitive area loaded. Since this
 	    // command does not require authorization, the presence of the sensitive
 	    // area was not already checked as it is with most other commands that
@@ -118,6 +119,8 @@ TPM2_StartAuthSession(
 	  case TPM_HT_TRANSIENT:
 	      {
 		  OBJECT      *object = HandleToObject(in->bind);
+		  pAssert_RC(object != NULL);
+
 		  // If the bind handle references a transient object, make sure that we
 		  // can get to the authorization value. Also, make sure that the object
 		  // has a proper Name (nameAlg != TPM_ALG_NULL). If it doesn't, then
@@ -162,14 +165,18 @@ TPM2_StartAuthSession(
 #endif // CC_StartAuthSession
 #include "Tpm.h"
 #include "PolicyRestart_fp.h"
-#ifdef TPM_CC_PolicyRestart  // Conditional expansion of this file
+#if CC_PolicyRestart  // Conditional expansion of this file
 TPM_RC
 TPM2_PolicyRestart(
 		   PolicyRestart_In    *in             // IN: input parameter list
 		   )
 {
+    SESSION* session = SessionGet(in->sessionHandle);
+    pAssert_RC(session != NULL);
+
     // Initialize policy session data
-    SessionResetPolicyData(SessionGet(in->sessionHandle));
+    SessionResetPolicyData(session);
+
     return TPM_RC_SUCCESS;
 }
 #endif // CC_PolicyRestart
